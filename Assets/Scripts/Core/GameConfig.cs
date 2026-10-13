@@ -10,7 +10,7 @@ namespace ShuYu
         // ---- 数值参数 ----
         public const int BoardSize = 4;             // 4×4 棋盘
         public const int InitialHealth = 20;        // 血条初始值
-        public const int PlaysPerTurn = 3;          // 每回合出牌数
+        public const int EnergyPerTurn = 3;         // 每回合能量（出牌扣费结算）
         public const int OverflowThreshold = 9;     // 数字 > 9 触发溢出（即 >= 10）
         public const int InitialEnemyValue = 6;     // M0 小怪初始值（可调到 8/9 更快演示溢出）
 
@@ -29,6 +29,17 @@ namespace ShuYu
             Color c;
             ColorUtility.TryParseHtmlString(hex, out c);
             return c;
+        }
+
+        /// <summary>卡牌颜色按运算区分（SPEC 13.5：减法蓝 / 加法橙 / 乘除金）。</summary>
+        public static Color CardColor(Operation op)
+        {
+            switch (op)
+            {
+                case Operation.Add: return CardOrange;
+                case Operation.Subtract: return CardBlue;
+                default: return CardGold; // Multiply / Divide
+            }
         }
 
         /// <summary>数值 → 颜色（SPEC 13.4 视觉映射）。</summary>

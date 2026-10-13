@@ -12,21 +12,50 @@ namespace ShuYu
         static Canvas _canvas;
         static TMP_FontAsset _font;
 
+        /// <summary>编辑器持久化场景时注入已存盘的字体资产，避免运行时重建。</summary>
+        public static void SetFont(TMP_FontAsset font) { _font = font; }
+
+        /// <summary>编辑器持久化场景时注入已存盘的圆角 Sprite。</summary>
+        public static void SetRoundedSprite(Sprite sprite) { _rounded = sprite; }
+
         public static Canvas EnsureCanvas()
         {
             if (_canvas != null) return _canvas;
-            var go = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            _canvas = go.GetComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = go.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
 
-            // 必须有 EventSystem，否则按钮无法响应点击（程序化创建 Canvas 时不会自动生成）
-            if (Object.FindObjectOfType<EventSystem>() == null)
+            // 场景化：场景里已有 Canvas（SceneBuilder 生成）时直接复用，不再新建
+            _canvas = Object.FindObjectOfType<Canvas>();
+            if (_canvas == null)
             {
-                new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+                var go = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+                _canvas = go.GetComponent<Canvas>();
+                var scaler = go.GetComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920, 1080);
+                scaler.matchWidthOrHeight = 0.5f;
+
+                // 必须有 EventSystem，否则按钮无法响应点击（程序化创建 Canvas 时不会自动生成）
+                if (Object.FindObjectOfType<EventSystem>() == null)
+                {
+                    new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+                }
+            }
+
+            // CRT 辉光：UI 走相机渲染（camera 模式）才能吃 URP 后处理 Bloom；Overlay 模式不吃后处理
+            if (_canvas.renderMode != RenderMode.ScreenSpaceCamera)
+            {
+                _canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                _canvas.planeDistance = 100f;
+            }
+            if (_canvas.worldCamera == null)
+            {
+                var cam = Camera.main;
+                if (cam == null)
+                {
+                    var camGo = new GameObject("Main Camera", typeof(Camera));
+                    camGo.tag = "MainCamera";
+                    cam = camGo.GetComponent<Camera>();
+                }
+                _canvas.worldCamera = cam;
             }
             return _canvas;
         }
@@ -78,26 +107,36 @@ namespace ShuYu
 
         /// <summary>圆角矩形 Sprite（九宫格，程序化生成，零手绘）。</summary>
         static Sprite _rounded;
+        public const float RoundedRadius = 18f;
+
+        /// <summary>生成圆角矩形纹理（运行时 Sprite 与编辑器持久化共用，避免两处漂移）。</summary>
+        public static Texture2D CreateRoundedTexture()
+        {
+            const int size = 64;
+            const int r = 18;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var cols = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = Mathf.Max(r - x, x - (size - 1 - r), 0f);
+                    float dy = Mathf.Max(r - y, y - (size - 1 - r), 0f);
+                    bool inside = (dx * dx + dy * dy) <= (r * r);
+                    cols[y * size + x] = inside ? (Color32)Color.white : new Color32(0, 0, 0, 0);
+                }
+            tex.SetPixels32(cols);
+            tex.Apply();
+            return tex;
+        }
+
         public static Sprite Rounded
         {
             get
             {
                 if (_rounded != null) return _rounded;
-                const int size = 64;
-                const int r = 18;
-                var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                var cols = new Color32[size * size];
-                for (int y = 0; y < size; y++)
-                    for (int x = 0; x < size; x++)
-                    {
-                        float dx = Mathf.Max(r - x, x - (size - 1 - r), 0f);
-                        float dy = Mathf.Max(r - y, y - (size - 1 - r), 0f);
-                        bool inside = (dx * dx + dy * dy) <= (r * r);
-                        cols[y * size + x] = inside ? (Color32)Color.white : new Color32(0, 0, 0, 0);
-                    }
-                tex.SetPixels32(cols);
-                tex.Apply();
-                _rounded = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
+                var tex = CreateRoundedTexture();
+                float r = RoundedRadius;
+                _rounded = Sprite.Create(tex, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
                 _rounded.name = "RoundedRect";
                 return _rounded;
             }
@@ -142,7 +181,7 @@ namespace ShuYu
             btn.targetGraphic = img;
             var labelText = CreateText("Label", rt, label, fontSize, textColor);
             Stretch(labelText.rectTransform);
-            btn.onClick.AddListener(onClick);
+            if (onClick != null) btn.onClick.AddListener(onClick);
             return rt;
         }
 
@@ -200,6 +239,26 @@ namespace ShuYu
             for (int y = oy; y < height; y += step)
                 for (int t = 0; t < len; t++) tex.SetPixel(ox + th + t, y, c);
 
+            tex.filterMode = FilterMode.Point;
+            tex.Apply();
+            return tex;
+        }
+
+        /// <summary>生成扫描线纹理（CRT 隔行暗线），每 spacing 像素一条水平暗线，供全屏 Image 用。</summary>
+        public static Texture2D CreateScanlineTexture(int width, int height, int spacing, Color color)
+        {
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            var cols = new Color32[width * height];
+            Color32 c = color;
+            Color32 clear = new Color32(0, 0, 0, 0);
+            int step = Mathf.Max(1, spacing);
+            for (int y = 0; y < height; y++)
+            {
+                Color32 rowColor = (y % step == 0) ? c : clear;
+                int rowStart = y * width;
+                for (int x = 0; x < width; x++) cols[rowStart + x] = rowColor;
+            }
+            tex.SetPixels32(cols);
             tex.filterMode = FilterMode.Point;
             tex.Apply();
             return tex;

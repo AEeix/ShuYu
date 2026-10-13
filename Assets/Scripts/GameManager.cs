@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace ShuYu
@@ -7,6 +9,7 @@ namespace ShuYu
     /// <summary>
     /// 顶层管理器：持有整局的持久状态（职业/血量/卡组/路线），驱动 标题 ↔ 选职 ↔ 路线 ↔ 战斗 切换。
     /// 坐标轴是持久「世界」底图：标题/选职/选路共用，路线直接画在轴上；进战斗被战斗自己的背景盖掉。
+    /// 切屏走淡入淡出过渡。
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -20,6 +23,16 @@ namespace ShuYu
 
         TurnManager _turn;   // 当前这场战斗
         GameObject _world;   // 持久世界：背景 + 坐标轴
+        Image _fade;         // 全屏黑色过渡遮罩
+        bool _transitioning; // 过渡中标志（防止连点重叠）
+
+        // 场景化引用（SceneBuilder 生成场景时用 BindScene 注入；为空则回退到纯运行时生成）
+        [SerializeField] GameObject _worldRoot;
+        [SerializeField] GameObject _titleRoot;
+        [SerializeField] Button _startButton;
+        [SerializeField] Button _quitButton;
+        [SerializeField] GameObject _classSelectRoot;
+        [SerializeField] GameObject _routeRoot;
 
         public TurnManager Turn => _turn;
         public BoardState Board => _turn.board;
@@ -29,15 +42,9 @@ namespace ShuYu
         public ClassData PlayerClass => _cls;
         public TurnPhase Phase => _turn.phase;
         public bool IsGameOver => _turn.phase != TurnPhase.PlayerTurn;
-
-        // 启动入口：无需任何场景，直接 Play 即可。
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
-        {
-            if (Instance != null) return;
-            var go = new GameObject("GameManager");
-            go.AddComponent<GameManager>();
-        }
+        public NodeType CurrentNodeType => _route.nodes[_route.currentIndex].type;
+        public GameObject ClassSelectRoot => _classSelectRoot;
+        public GameObject RouteRoot => _routeRoot;
 
         void Awake()
         {
@@ -48,7 +55,45 @@ namespace ShuYu
 
         void Start()
         {
-            ShowTitle();
+            if (_worldRoot != null) _world = _worldRoot;
+
+            // 确保 Canvas 走相机模式（CRT 后处理需要），旧场景的 Overlay Canvas 也会在此升级
+            UIFactory.EnsureCanvas();
+
+            if (_titleRoot != null)
+            {
+                // 场景化：标题已在场景里，只接线按钮，不再运行时生成
+                if (_startButton != null) _startButton.onClick.AddListener(ShowClassSelect);
+                if (_quitButton != null) _quitButton.onClick.AddListener(QuitGame);
+            }
+            else
+            {
+                ShowTitle(); // 回退：未跑 SceneBuilder 时纯运行时生成
+            }
+
+            // CRT 后处理（辉光/暗角/色差/扫描线），幂等
+            if (GetComponent<CRTPostFX>() == null) gameObject.AddComponent<CRTPostFX>();
+        }
+
+        /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
+        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button quitButton,
+            GameObject classSelectRoot, GameObject routeRoot)
+        {
+            _worldRoot = worldRoot;
+            _titleRoot = titleRoot;
+            _startButton = startButton;
+            _quitButton = quitButton;
+            _classSelectRoot = classSelectRoot;
+            _routeRoot = routeRoot;
+        }
+
+        public void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         /// <summary>创建持久世界：深色背景 + 坐标轴（一直保留到进战斗）。</summary>
@@ -71,18 +116,71 @@ namespace ShuYu
             UIFactory.Stretch(axis.rectTransform);
         }
 
+        /// <summary>创建全屏黑色过渡遮罩（惰性，首次切屏时建）。</summary>
+        void EnsureFade()
+        {
+            if (_fade != null) return;
+            var canvas = UIFactory.EnsureCanvas();
+            var rt = UIFactory.CreateRect("TransitionFade", canvas.transform);
+            UIFactory.Stretch(rt);
+            _fade = rt.gameObject.AddComponent<Image>();
+            _fade.color = new Color(0, 0, 0, 0);
+            _fade.raycastTarget = false;
+        }
+
+        /// <summary>带淡入淡出过渡的切屏。build 里执行「销毁旧屏 + 建新屏」。</summary>
+        void Switch(Action build)
+        {
+            if (_transitioning) return;   // 过渡中，忽略连点
+            StartCoroutine(Transition(build));
+        }
+
+        IEnumerator Transition(Action build)
+        {
+            _transitioning = true;
+            EnsureFade();
+            _fade.transform.SetAsLastSibling();
+
+            const float dur = 0.2f;
+            // 淡入（画面压黑）
+            for (float t = 0; t < dur; t += Time.deltaTime)
+            {
+                _fade.color = new Color(0, 0, 0, Smooth(t / dur));
+                yield return null;
+            }
+            _fade.color = new Color(0, 0, 0, 1);
+
+            // 换屏
+            build();
+
+            // 淡出（画面回来）
+            _fade.transform.SetAsLastSibling();
+            for (float t = 0; t < dur; t += Time.deltaTime)
+            {
+                _fade.color = new Color(0, 0, 0, 1 - Smooth(t / dur));
+                yield return null;
+            }
+            _fade.color = new Color(0, 0, 0, 0);
+            _transitioning = false;
+        }
+
+        /// <summary>smoothstep 缓动（让淡入淡出更顺）。</summary>
+        static float Smooth(float x) { return x * x * (3 - 2 * x); }
+
         public void ShowTitle()
         {
             EnsureWorld();
-            ClearScreen();
-            gameObject.AddComponent<TitleScreen>();
+            Switch(() => {
+                ClearScreen();
+                if (_titleRoot != null) ShowFrame(_titleRoot);
+                else gameObject.AddComponent<TitleScreen>(); // 回退：运行时生成标题
+            });
         }
 
         public void ShowClassSelect()
         {
             EnsureWorld();
-            ClearScreen();
-            gameObject.AddComponent<ClassSelectScreen>();
+            Switch(() => { ClearScreen(); ShowFrame(_classSelectRoot); gameObject.AddComponent<ClassSelectScreen>(); });
         }
 
         /// <summary>按选定职业开一局：建持久状态 + 路线图，进路线界面。</summary>
@@ -99,8 +197,28 @@ namespace ShuYu
         public void ShowRoute()
         {
             EnsureWorld();
-            ClearScreen();
-            gameObject.AddComponent<RouteScreen>();
+            Switch(() => { ClearScreen(); ShowFrame(_routeRoot); gameObject.AddComponent<RouteScreen>(); });
+        }
+
+        /// <summary>战斗胜利战利品：三选一拿卡（BOSS 通关走结局，另议）。</summary>
+        public void ShowCardReward()
+        {
+            EnsureWorld();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CardRewardScreen>(); });
+        }
+
+        /// <summary>选中战利品卡：加入卡组，回路线。</summary>
+        public void TakeRewardCard(CardData card)
+        {
+            _deck.AddCard(card);
+            ShowRoute();
+        }
+
+        /// <summary>BOSS 通关：进结局屏。</summary>
+        public void ShowEnding()
+        {
+            EnsureWorld();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<EndingScreen>(); });
         }
 
         /// <summary>进入路线上的一个节点：战斗/精英/BOSS 开战，篝火回血。</summary>
@@ -116,6 +234,18 @@ namespace ShuYu
                 ShowRoute();
                 return;
             }
+            if (node.type == NodeType.Treasure)
+            {
+                _player.health = Mathf.Min(_player.health + 3, GameConfig.InitialHealth); // 宝箱回 3（占位：后续换给卡/遗物）
+                ShowRoute();
+                return;
+            }
+            if (node.type == NodeType.Mystery)
+            {
+                _player.health = Mathf.Min(_player.health + 2, GameConfig.InitialHealth); // 问号回 2（占位：后续换随机事件）
+                ShowRoute();
+                return;
+            }
 
             StartBattle(node);
         }
@@ -124,10 +254,9 @@ namespace ShuYu
         {
             var board = SpawnBoard(node.type);
             _deck.Reset();   // 每场战斗前重置卡组
-            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.PlaysPerTurn);
+            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn);
 
-            ClearScreen();
-            gameObject.AddComponent<BattleScreen>();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<BattleScreen>(); });
         }
 
         BoardState SpawnBoard(NodeType type)
@@ -159,6 +288,16 @@ namespace ShuYu
             var c = GetComponent<ClassSelectScreen>(); if (c != null) Destroy(c);
             var r = GetComponent<RouteScreen>(); if (r != null) Destroy(r);
             var b = GetComponent<BattleScreen>(); if (b != null) Destroy(b);
+            var w = GetComponent<CardRewardScreen>(); if (w != null) Destroy(w);
+            var e = GetComponent<EndingScreen>(); if (e != null) Destroy(e);
+        }
+
+        /// <summary>只显示指定场景框架（其余隐藏）。frame 为 null 则全部隐藏。</summary>
+        void ShowFrame(GameObject frame)
+        {
+            if (_titleRoot != null) _titleRoot.SetActive(frame == _titleRoot);
+            if (_classSelectRoot != null) _classSelectRoot.SetActive(frame == _classSelectRoot);
+            if (_routeRoot != null) _routeRoot.SetActive(frame == _routeRoot);
         }
     }
 }

@@ -140,10 +140,10 @@ namespace ShuYu
         {
             var gm = GameManager.Instance;
 
-            // 剩余出牌数
-            var plays = UIFactory.CreateText("Plays", parent,
-                "剩余出牌 " + gm.Turn.playsLeft + " / " + gm.Turn.playsPerTurn,
-                36, GameConfig.SubText);
+            // 能量（本回合剩余 / 上限）
+            var plays = UIFactory.CreateText("Energy", parent,
+                "能量 " + gm.Turn.energy + " / " + gm.Turn.energyPerTurn,
+                36, GameConfig.Accent);
             UIFactory.Place(plays.rectTransform,
                 new Vector2(1, 0), new Vector2(1, 0),
                 new Vector2(-500, 40), new Vector2(-40, 90));
@@ -162,7 +162,7 @@ namespace ShuYu
                 var card = hand[i];
                 bool selected = _selectedCard != null && ReferenceEquals(_selectedCard, card);
                 var bg = selected ? GameConfig.Accent : GameConfig.CardBase;
-                var fg = selected ? GameConfig.Background : CardColor(card.op);
+                var fg = selected ? GameConfig.Background : GameConfig.CardColor(card.op);
 
                 float centerX = startX + cardW / 2f + i * (cardW + gap);
                 var cardRt = UIFactory.CreateRect("Card_" + card.DisplayText(), parent);
@@ -181,6 +181,12 @@ namespace ShuYu
 
                 var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 64, fg);
                 UIFactory.Stretch(label.rectTransform);
+
+                // 费用（卡牌左上角小字）
+                var cost = UIFactory.CreateText("Cost", cardRt, card.cost.ToString(), 40, GameConfig.Accent);
+                UIFactory.Place(cost.rectTransform,
+                    new Vector2(0, 1), new Vector2(0, 1),
+                    new Vector2(10, -52), new Vector2(60, -10));
 
                 var c = card;
                 btn.onClick.AddListener(() => OnCardClicked(c));
@@ -205,17 +211,6 @@ namespace ShuYu
                 new Vector2(60, 150), new Vector2(560, 190));
         }
 
-        /// <summary>卡牌颜色按运算区分（SPEC 13.5：减法蓝 / 加法橙 / 乘除金）。</summary>
-        static Color CardColor(Operation op)
-        {
-            switch (op)
-            {
-                case Operation.Add: return GameConfig.CardOrange;
-                case Operation.Subtract: return GameConfig.CardBlue;
-                default: return GameConfig.CardGold; // Multiply / Divide
-            }
-        }
-
         void BuildOverlay(Transform parent)
         {
             var gm = GameManager.Instance;
@@ -233,9 +228,11 @@ namespace ShuYu
 
             if (gm.Phase == TurnPhase.Won)
             {
-                var cont = UIFactory.CreateButton("Continue", parent, "继续前进", 48,
+                // 普通/精英胜利 → 三选一拿卡；BOSS 胜利 → 通关结局屏
+                bool isBoss = GameManager.Instance.CurrentNodeType == NodeType.Boss;
+                var cont = UIFactory.CreateButton("Continue", parent, isBoss ? "查看结局" : "继续前进", 48,
                     GameConfig.Accent, GameConfig.Background,
-                    () => GameManager.Instance.ShowRoute());
+                    () => { if (isBoss) GameManager.Instance.ShowEnding(); else GameManager.Instance.ShowCardReward(); });
                 UIFactory.Place(cont,
                     new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     new Vector2(-230, -200), new Vector2(-20, -100));

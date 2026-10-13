@@ -32,12 +32,14 @@ namespace ShuYu
         public Operation op;
         public TargetType target;
         public int magnitude;
+        public int cost;   // 能量费用
 
-        public CardData(Operation op, TargetType target, int magnitude)
+        public CardData(Operation op, TargetType target, int magnitude, int cost = 1)
         {
             this.op = op;
             this.target = target;
             this.magnitude = magnitude;
+            this.cost = cost;
         }
 
         public string DisplayText()

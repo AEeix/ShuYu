@@ -53,6 +53,12 @@ namespace ShuYu
             return true;
         }
 
+        /// <summary>获得一张新卡（战利品）：直接进抽牌堆，下一场战斗重置时洗入。</summary>
+        public void AddCard(CardData card)
+        {
+            drawPile.Add(card);
+        }
+
         /// <summary>重置卡组：手牌 + 弃牌堆全部收回抽牌堆并洗牌（每场战斗前调用）。</summary>
         public void Reset()
         {

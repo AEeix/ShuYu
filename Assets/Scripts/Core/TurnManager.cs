@@ -12,34 +12,34 @@ namespace ShuYu
         public PlayerState player;
         public Deck deck;
         public ClassData playerClass;
-        public int playsLeft;
-        public int playsPerTurn;
+        public int energy;          // 当前能量
+        public int energyPerTurn;   // 每回合能量上限
         public int turnNumber;
         public TurnPhase phase;
 
-        public TurnManager(ClassData playerClass, BoardState board, PlayerState player, Deck deck, int playsPerTurn)
+        public TurnManager(ClassData playerClass, BoardState board, PlayerState player, Deck deck, int energyPerTurn)
         {
             this.playerClass = playerClass;
             this.board = board;
             this.player = player;
             this.deck = deck;
-            this.playsPerTurn = playsPerTurn;
+            this.energyPerTurn = energyPerTurn;
             this.turnNumber = 1;
             this.phase = TurnPhase.PlayerTurn;
             StartTurn();   // 开局先抽满手牌
         }
 
-        /// <summary>回合开始：抽满手牌 + 重置出牌数。</summary>
+        /// <summary>回合开始：抽满手牌 + 回满能量。</summary>
         public void StartTurn()
         {
             deck.DrawToFull();
-            playsLeft = playsPerTurn;
+            energy = energyPerTurn;
         }
 
-        /// <summary>对目标格出牌。成功返回 true（不能对空格 / 非玩家回合 / 无出牌数 / 手牌里没这张牌）。</summary>
+        /// <summary>对目标格出牌。成功返回 true（不能对空格 / 非玩家回合 / 能量不足 / 手牌里没这张牌）。</summary>
         public bool TryPlayCard(CardData card, int row, int col)
         {
-            if (phase != TurnPhase.PlayerTurn || playsLeft <= 0) return false;
+            if (phase != TurnPhase.PlayerTurn || energy < card.cost) return false;
 
             var target = board.At(row, col);
             if (target == null) return false; // 不能对空格出牌
@@ -50,7 +50,7 @@ namespace ShuYu
                 board.numbers.Remove(target); // 压到 0 = 消灭
 
             deck.PlayCard(card);   // 出牌 → 弃牌堆
-            playsLeft--;
+            energy -= card.cost;   // 扣费
             CheckOutcome();
             return true;
         }
