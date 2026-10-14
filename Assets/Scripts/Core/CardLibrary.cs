@@ -26,7 +26,6 @@ namespace ShuYu
                 Make(Operation.Add, 2),
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 3),
-                Make(Operation.Multiply, 0),
             };
             for (int i = pool.Count - 1; i > 0; i--)
             {
@@ -51,8 +50,8 @@ namespace ShuYu
                 Make(Operation.Subtract, 2),
                 Make(Operation.Subtract, 2),
                 Make(Operation.Subtract, 3),
+                Make(Operation.Subtract, 1),
                 Make(Operation.Divide, 2),
-                Make(Operation.Multiply, 0),
                 Make(Operation.Add, 2),
             };
         }
@@ -65,8 +64,8 @@ namespace ShuYu
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 2),
-                Make(Operation.Multiply, 0),
-                Make(Operation.Multiply, 0),
+                Make(Operation.Divide, 2),
+                Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 2),
@@ -89,7 +88,7 @@ namespace ShuYu
                 Make(Operation.Subtract, 2),
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 2),
-                Make(Operation.Multiply, 0),
+                Make(Operation.Add, 2),
             };
         }
     }

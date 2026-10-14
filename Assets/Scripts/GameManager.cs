@@ -262,12 +262,31 @@ namespace ShuYu
         BoardState SpawnBoard(NodeType type)
         {
             var board = new BoardState(GameConfig.BoardSize);
-            int count = type == NodeType.Boss ? 6 : (type == NodeType.Elite ? 5 : 4);
-            // 占位：固定位置铺数字（值 2~7），精英/BOSS 更多；怪物形状棋盘留 M4
-            int[,] spots = { { 1, 1 }, { 1, 2 }, { 2, 1 }, { 2, 2 }, { 0, 0 }, { 3, 3 } };
-            for (int i = 0; i < count; i++)
-                board.numbers.Add(new NumberData(2 + i, spots[i, 0], spots[i, 1]));
+            if (type == NodeType.Battle)
+                SpawnMobs(board);            // 普通小怪：抽象格子，无核心，胜=清空
+            else
+                SpawnMonster(board, type);   // 精英/BOSS：部位 + 核心，胜=打爆核心
             return board;
+        }
+
+        /// <summary>普通小怪：固定位置铺普通数字（无核心，胜=清空）。</summary>
+        void SpawnMobs(BoardState board)
+        {
+            int[,] spots = { { 1, 1 }, { 1, 2 }, { 2, 1 }, { 2, 2 } };
+            for (int i = 0; i < 4; i++)
+                board.numbers.Add(new NumberData(2 + i, spots[i, 0], spots[i, 1]));
+        }
+
+        /// <summary>精英/BOSS：占位「龙形」部位 + 胸口核心。部位按 attackOrder 固定顺序咬人，核心蓄力爆炸、打爆即胜。</summary>
+        void SpawnMonster(BoardState board, NodeType type)
+        {
+            bool boss = type == NodeType.Boss;
+            board.numbers.Add(new NumberData(boss ? 5 : 4, 0, 1, NumberKind.Part, 0)); // 头
+            board.numbers.Add(new NumberData(boss ? 4 : 3, 1, 0, NumberKind.Part, 1)); // 左爪
+            board.numbers.Add(new NumberData(boss ? 4 : 3, 1, 2, NumberKind.Part, 2)); // 右爪
+            if (boss)
+                board.numbers.Add(new NumberData(5, 2, 2, NumberKind.Part, 3)); // 尾（BOSS 多一部位）
+            board.numbers.Add(new NumberData(boss ? 7 : 6, 2, 1, NumberKind.Core)); // 核心（胸口）
         }
 
         /// <summary>UI 调用：出牌。</summary>

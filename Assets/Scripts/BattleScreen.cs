@@ -115,14 +115,21 @@ namespace ShuYu
 
         void CreateCell(Transform parent, int row, int col, float cellSize)
         {
-            var data = GameManager.Instance.Board.At(row, col);
+            var gm = GameManager.Instance;
+            var data = gm.Board.At(row, col);
 
             var go = new GameObject("Cell_" + row + "_" + col, typeof(RectTransform), typeof(Image), typeof(Button));
             var rt = go.GetComponent<RectTransform>();
             rt.SetParent(parent, false);
 
             var img = go.GetComponent<Image>();
-            img.color = new Color(0, 0, 0, 0); // 透明底，露出下方网格线
+            bool isAttacker = gm.Turn.attacker != null && gm.Turn.attacker.row == row && gm.Turn.attacker.col == col;
+            if (isAttacker)
+                img.color = new Color(1f, 0.35f, 0.23f, 0.55f);   // 本回合要咬你的部位：橙红半透明
+            else if (data != null && data.kind == NumberKind.Core)
+                img.color = new Color(1f, 0.7f, 0f, 0.45f);        // 核心：金标记（蓄力爆炸中）
+            else
+                img.color = new Color(0, 0, 0, 0);                 // 透明底，露出网格线
 
             var btn = go.GetComponent<Button>();
             btn.targetGraphic = img;
@@ -133,6 +140,17 @@ namespace ShuYu
             {
                 var txt = UIFactory.CreateText("Value", rt, data.value.ToString(), cellSize * 0.5f, GameConfig.NumberColor(data.value));
                 UIFactory.Stretch(txt.rectTransform);
+            }
+
+            if (isAttacker)
+            {
+                var mark = UIFactory.CreateText("Atk", rt, "!", cellSize * 0.3f, Color.white);
+                var mrt = mark.rectTransform;
+                mrt.anchorMin = new Vector2(1, 1);
+                mrt.anchorMax = new Vector2(1, 1);
+                mrt.pivot = new Vector2(1, 1);
+                mrt.anchoredPosition = new Vector2(-4, -2);
+                mrt.sizeDelta = new Vector2(cellSize * 0.3f, cellSize * 0.3f);
             }
         }
 

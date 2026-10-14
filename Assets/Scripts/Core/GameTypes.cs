@@ -9,6 +9,9 @@ namespace ShuYu
     /// <summary>目标类型（M0 只用 Single，其余留给 M1）。</summary>
     public enum TargetType { Single, Row, Column, All }
 
+    /// <summary>数字种类：普通数字 / 攻击部位 / 核心（怪物行为用）。</summary>
+    public enum NumberKind { Normal, Part, Core }
+
     /// <summary>数字实体（棋盘上的敌人）。</summary>
     [Serializable]
     public class NumberData
@@ -16,12 +19,16 @@ namespace ShuYu
         public int value;
         public int row;
         public int col;
+        public NumberKind kind;     // 普通 / 攻击部位 / 核心
+        public int attackOrder;     // 部位固定攻击顺序（Part 用，Normal/Core 忽略）
 
-        public NumberData(int value, int row, int col)
+        public NumberData(int value, int row, int col, NumberKind kind = NumberKind.Normal, int attackOrder = 0)
         {
             this.value = value;
             this.row = row;
             this.col = col;
+            this.kind = kind;
+            this.attackOrder = attackOrder;
         }
     }
 
@@ -79,7 +86,7 @@ namespace ShuYu
         {
             var copy = new BoardState(size);
             for (int i = 0; i < numbers.Count; i++)
-                copy.numbers.Add(new NumberData(numbers[i].value, numbers[i].row, numbers[i].col));
+                copy.numbers.Add(new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder));
             return copy;
         }
     }
