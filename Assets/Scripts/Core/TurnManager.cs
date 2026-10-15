@@ -77,7 +77,7 @@ namespace ShuYu
             {
                 board.numbers.Remove(target);   // 压到 0 = 消灭
                 if (target.kind == NumberKind.Core)
-                    board.numbers.RemoveAll(n => n.kind == NumberKind.Part); // 核心崩 → 整怪部位一起消散
+                    board.numbers.RemoveAll(n => n.kind == NumberKind.Part && n.coreGroup == target.coreGroup); // 核心崩 → 只崩同组部位（多核心逐核坏死）
             }
 
             deck.PlayCard(card);   // 出牌 → 弃牌堆

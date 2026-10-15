@@ -277,16 +277,12 @@ namespace ShuYu
                 board.numbers.Add(new NumberData(2 + i, spots[i, 0], spots[i, 1]));
         }
 
-        /// <summary>精英/BOSS：占位「龙形」部位 + 胸口核心。部位按 attackOrder 固定顺序咬人，核心蓄力爆炸、打爆即胜。</summary>
+        /// <summary>精英/BOSS：从形状目录铺「怪物形状棋盘」。BOSS 用双核心双头龙，精英三选一随机（SPEC 10）。</summary>
         void SpawnMonster(BoardState board, NodeType type)
         {
-            bool boss = type == NodeType.Boss;
-            board.numbers.Add(new NumberData(boss ? 5 : 4, 0, 1, NumberKind.Part, 0)); // 头
-            board.numbers.Add(new NumberData(boss ? 4 : 3, 1, 0, NumberKind.Part, 1)); // 左爪
-            board.numbers.Add(new NumberData(boss ? 4 : 3, 1, 2, NumberKind.Part, 2)); // 右爪
-            if (boss)
-                board.numbers.Add(new NumberData(5, 2, 2, NumberKind.Part, 3)); // 尾（BOSS 多一部位）
-            board.numbers.Add(new NumberData(boss ? 7 : 6, 2, 1, NumberKind.Core)); // 核心（胸口）
+            var shape = (type == NodeType.Boss) ? MonsterShapes.BossDragon() : MonsterShapes.EliteRandom();
+            foreach (var c in shape)
+                board.numbers.Add(new NumberData(c.value, c.row, c.col, c.kind, c.attackOrder, c.coreGroup));
         }
 
         /// <summary>UI 调用：出牌。</summary>

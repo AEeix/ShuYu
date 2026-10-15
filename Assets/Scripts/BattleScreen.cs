@@ -83,14 +83,18 @@ namespace ShuYu
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-half, -half + upShift), new Vector2(half, half + upShift));
 
-            // 棋盘底：一整块深色正方形（先画一个正方形）
-            var boardBg = container.gameObject.AddComponent<Image>();
-            boardBg.color = GameConfig.CardBase;
+            // 怪物战（有部位/核心）用「形状棋盘」，普通小怪战用标准格子（SPEC 10.1）
+            bool isMonster = board.numbers.Exists(n => n.kind != NumberKind.Normal);
 
-            // 网格线：外框 + 内部线，把大正方形切成 size×size 格（老式粗边框）
+            // 棋盘底：怪物战融入背景（暗块轮廓在深底上读形状），普通小怪保持棋盘底
+            var boardBg = container.gameObject.AddComponent<Image>();
+            boardBg.color = isMonster ? GameConfig.Background : GameConfig.CardBase;
+
+            // 网格线：外框 + 内部线（怪物战只留外框，弱化格子感）
             const float lineW = 6f;
             for (int i = 0; i <= size; i++)
             {
+                if (isMonster && i != 0 && i != size) continue;   // 怪物战跳过内部线
                 float p = i * cellSize;
 
                 var vLine = UIFactory.CreatePanel("VLine_" + i, container, GameConfig.SubText);
@@ -130,10 +134,21 @@ namespace ShuYu
 
             var img = go.GetComponent<Image>();
             bool isAttacker = gm.Turn.attacker != null && gm.Turn.attacker.row == row && gm.Turn.attacker.col == col;
-            if (isAttacker)
-                img.color = new Color(1f, 0.35f, 0.23f, 0.55f);   // 本回合要咬你的部位：橙红半透明
+
+            if (data != null && data.kind == NumberKind.Part)
+            {
+                // 部位：暗块填充 + 危险度发光描边（Bloom 辉光）；攻击部位更亮橙红
+                img.color = isAttacker ? new Color(1f, 0.35f, 0.23f, 0.9f) : GameConfig.MonsterFill;
+                UIFactory.AddOutline(img, GameConfig.NumberColor(data.value), new Vector2(3f, -3f));
+            }
             else if (data != null && data.kind == NumberKind.Core)
-                img.color = new Color(1f, 0.7f, 0f, 0.45f);        // 核心：金标记（蓄力爆炸中）
+            {
+                // 核心：金色填充 + 金色描边 + 脉冲发光（蓄力爆炸中）
+                img.color = new Color(1f, 0.7f, 0f, 0.45f);
+                UIFactory.AddOutline(img, GameConfig.Accent, new Vector2(3f, -3f));
+                img.gameObject.AddComponent<Pulse>().Setup(img,
+                    new Color(1f, 0.7f, 0f, 0.25f), new Color(1f, 0.7f, 0f, 0.6f));
+            }
             else
                 img.color = new Color(0, 0, 0, 0);                 // 透明底，露出网格线
 
@@ -144,7 +159,9 @@ namespace ShuYu
 
             if (data != null)
             {
-                var txt = UIFactory.CreateText("Value", rt, data.value.ToString(), cellSize * 0.5f, GameConfig.NumberColor(data.value));
+                // 核心文字用白（金色底更清晰），其余按危险度着色（SPEC 13.4）
+                Color textColor = (data.kind == NumberKind.Core) ? Color.white : GameConfig.NumberColor(data.value);
+                var txt = UIFactory.CreateText("Value", rt, data.value.ToString(), cellSize * 0.5f, textColor);
                 UIFactory.Stretch(txt.rectTransform);
             }
 

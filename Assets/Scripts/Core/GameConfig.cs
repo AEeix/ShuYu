@@ -30,6 +30,7 @@ namespace ShuYu
         public static readonly Color CardGold = Hex("#FFD54F");    // 乘除卡
         public static readonly Color CardBase = Hex("#161B26");    // 卡牌底
         public static readonly Color SubText = Hex("#8892A6");     // 次要文字
+        public static readonly Color MonsterFill = Hex("#1E2836"); // 怪物部位暗块填充（略亮于背景，衬托发光轮廓）
 
         public static Color Hex(string hex)
         {

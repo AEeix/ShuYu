@@ -21,14 +21,16 @@ namespace ShuYu
         public int col;
         public NumberKind kind;     // 普通 / 攻击部位 / 核心
         public int attackOrder;     // 部位固定攻击顺序（Part 用，Normal/Core 忽略）
+        public int coreGroup;       // 核心归属分组（Part/Core 用，多核心 BOSS 逐核坏死；Normal 恒 0）
 
-        public NumberData(int value, int row, int col, NumberKind kind = NumberKind.Normal, int attackOrder = 0)
+        public NumberData(int value, int row, int col, NumberKind kind = NumberKind.Normal, int attackOrder = 0, int coreGroup = 0)
         {
             this.value = value;
             this.row = row;
             this.col = col;
             this.kind = kind;
             this.attackOrder = attackOrder;
+            this.coreGroup = coreGroup;
         }
     }
 
@@ -86,7 +88,7 @@ namespace ShuYu
         {
             var copy = new BoardState(size);
             for (int i = 0; i < numbers.Count; i++)
-                copy.numbers.Add(new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder));
+                copy.numbers.Add(new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder, numbers[i].coreGroup));
             return copy;
         }
     }
