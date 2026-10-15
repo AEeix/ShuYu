@@ -22,8 +22,10 @@ namespace ShuYu
         {
             if (_canvas != null) return _canvas;
 
-            // 场景化：场景里已有 Canvas（SceneBuilder 生成）时直接复用，不再新建
-            _canvas = Object.FindObjectOfType<Canvas>();
+            // 场景化：场景里已有主 Canvas（SceneBuilder 生成）时直接复用，不再新建。
+            // 注意：CRT 扫描线也是 Canvas（Overlay 置顶），但它没有 GraphicRaycaster。
+            // 若 FindObjectOfType 误抓扫描线 Canvas，战斗等运行时 UI 会被挂到无 Raycaster 的画布上、点不动。
+            _canvas = FindMainCanvas();
             if (_canvas == null)
             {
                 var go = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -58,6 +60,15 @@ namespace ShuYu
                 _canvas.worldCamera = cam;
             }
             return _canvas;
+        }
+
+        /// <summary>找带 GraphicRaycaster 的主 Canvas，跳过扫描线等无 Raycaster 的画布。</summary>
+        static Canvas FindMainCanvas()
+        {
+            var canvases = Object.FindObjectsOfType<Canvas>();
+            foreach (var c in canvases)
+                if (c.GetComponent<GraphicRaycaster>() != null) return c;
+            return null;
         }
 
         static TMP_FontAsset Font
