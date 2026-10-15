@@ -153,6 +153,21 @@ namespace ShuYu
             }
         }
 
+        static Sprite _slime;
+        /// <summary>史莱姆 Sprite（缓存）：从 Resources 加载已抠白底的透明 PNG（白底由 _process_slime.ps1 预处理成 slime_alpha.png）。</summary>
+        public static Sprite Slime
+        {
+            get
+            {
+                if (_slime != null) return _slime;
+                var tex = Resources.Load<Texture2D>("Sprites/slime_alpha");
+                if (tex == null) { Debug.LogWarning("[ShuYu] 找不到素材 Sprites/slime_alpha"); return null; }
+                _slime = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                _slime.name = "slime";
+                return _slime;
+            }
+        }
+
         public static RectTransform CreateRect(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));

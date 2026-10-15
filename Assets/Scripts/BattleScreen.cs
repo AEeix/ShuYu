@@ -86,9 +86,27 @@ namespace ShuYu
             // 怪物战（有部位/核心）用「形状棋盘」，普通小怪战用标准格子（SPEC 10.1）
             bool isMonster = board.numbers.Exists(n => n.kind != NumberKind.Normal);
 
-            // 棋盘底：怪物战融入背景（暗块轮廓在深底上读形状），普通小怪保持棋盘底
+            // 棋盘底：怪物战融入背景；普通小怪战用史莱姆身体当底（数字=瘤块 长在史莱姆身上）
             var boardBg = container.gameObject.AddComponent<Image>();
-            boardBg.color = isMonster ? GameConfig.Background : GameConfig.CardBase;
+            if (isMonster)
+            {
+                boardBg.color = GameConfig.Background;
+            }
+            else
+            {
+                var slime = UIFactory.Slime;
+                if (slime != null)
+                {
+                    boardBg.sprite = slime;
+                    boardBg.type = Image.Type.Simple;
+                    boardBg.color = Color.white;
+                    boardBg.preserveAspect = true;
+                }
+                else
+                {
+                    boardBg.color = GameConfig.CardBase;   // 没素材时回退深色底
+                }
+            }
 
             // 网格线：外框 + 内部线（怪物战只留外框，弱化格子感）
             const float lineW = 6f;
