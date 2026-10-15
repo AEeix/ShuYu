@@ -58,6 +58,12 @@ namespace ShuYu
             UIFactory.Place(hint.rectTransform,
                 new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(0, -230), new Vector2(0, -200));
+
+            // 回合数（右上角）：帮玩家预判「每 2 回合入侵」的时机
+            var turn = UIFactory.CreateText("Turn", parent, "回合 " + gm.Turn.turnNumber, 40, GameConfig.SubText);
+            UIFactory.Place(turn.rectTransform,
+                new Vector2(1, 1), new Vector2(1, 1),
+                new Vector2(-240, -50), new Vector2(-40, -10));
         }
 
         void BuildBoard(Transform parent)

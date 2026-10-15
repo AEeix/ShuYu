@@ -5,7 +5,7 @@ namespace ShuYu
     public enum TurnPhase { PlayerTurn, Won, Lost }
 
     /// <summary>
-    /// 回合状态机：抽牌 → 玩家行动 → 怪物攻击结算 → 增殖 → 核心爆炸/溢出 → 判胜负（SPEC 5，入侵留待后续）。
+    /// 回合状态机：抽牌 → 玩家行动 → 怪物攻击结算 → 增殖 → 核心爆炸/溢出 → 入侵 → 判胜负（SPEC 5）。
     /// 纯逻辑层，不碰 UI，方便调试与后续序列化。
     /// </summary>
     public class TurnManager
@@ -22,6 +22,8 @@ namespace ShuYu
         public NumberData attacker;    // 本回合宣言攻击的部位（UI 高亮；无怪/无部位则为 null）
         int _lastAttackOrder = -1;     // 固定攻击顺序游标：上一个宣言部位的 attackOrder
         bool _isMonster;               // 这场是否有核心/部位（怪物战，胜=打爆核心；否则胜=清空）
+        bool _invasion;                // 是否启用数字入侵（普通小怪战的生存压力源）
+        static readonly System.Random _rng = new System.Random();
 
         public TurnManager(ClassData playerClass, BoardState board, PlayerState player, Deck deck, int energyPerTurn)
         {
@@ -33,6 +35,7 @@ namespace ShuYu
             this.turnNumber = 1;
             this.phase = TurnPhase.PlayerTurn;
             _isMonster = board.numbers.Exists(n => n.kind != NumberKind.Normal);
+            _invasion = !_isMonster;   // 入侵只在普通小怪战生效（怪物战靠部位咬人 + 核心爆炸给压力）
             StartTurn();   // 开局先抽满手牌 + 宣言首个攻击部位
         }
 
@@ -126,8 +129,32 @@ namespace ShuYu
             if (phase == TurnPhase.PlayerTurn)
             {
                 turnNumber++;
+                TryInvasion();   // 入侵：每 N 回合往随机空格投新数字（SPEC 4）
                 StartTurn();
             }
+        }
+
+        /// <summary>入侵：普通小怪战每 N 回合投一批新数字（SPEC 4：每 2 回合 +2 个，值 1~3，投随机空格）。</summary>
+        void TryInvasion()
+        {
+            if (!_invasion) return;
+            if (turnNumber % GameConfig.InvasionInterval != 0) return;
+            for (int i = 0; i < GameConfig.InvasionCount; i++)
+                SpawnInvader();
+        }
+
+        /// <summary>往一个随机空格投一个 1~3 的新数字；棋盘满了则跳过（满盘本身已是压力）。</summary>
+        void SpawnInvader()
+        {
+            var empty = new List<int>();
+            for (int r = 0; r < board.size; r++)
+                for (int c = 0; c < board.size; c++)
+                    if (board.At(r, c) == null) empty.Add(r * board.size + c);
+            if (empty.Count == 0) return;
+
+            int idx = empty[_rng.Next(empty.Count)];
+            int value = _rng.Next(GameConfig.InvasionMinValue, GameConfig.InvasionMaxValue + 1);
+            board.numbers.Add(new NumberData(value, idx / board.size, idx % board.size));
         }
 
         void CheckOutcome()

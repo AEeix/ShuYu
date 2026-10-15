@@ -16,6 +16,10 @@ namespace ShuYu
         public const int CoreGrowth = 2;            // 核心每回合喂养量（占位待调）
         public const int CoreExplosionDamage = 5;   // 核心爆炸固定伤害（占位待调）
         public const int CoreResetValue = 3;        // 核心爆炸后回落值（占位待调）
+        public const int InvasionInterval = 2;      // 每 N 回合触发一次数字入侵
+        public const int InvasionCount = 2;         // 每次入侵新增的数字个数
+        public const int InvasionMinValue = 1;      // 入侵数字值下限（SPEC 4：1~3）
+        public const int InvasionMaxValue = 3;      // 入侵数字值上限
 
         // ---- 色板（SPEC 13.2）----
         public static readonly Color Background = Hex("#0B0E14");
