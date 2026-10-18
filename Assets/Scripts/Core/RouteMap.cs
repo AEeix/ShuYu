@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace ShuYu
@@ -5,6 +6,7 @@ namespace ShuYu
     public enum NodeType { Start, Battle, Elite, Camp, Treasure, Mystery, Boss }
 
     /// <summary>路线图节点。</summary>
+    [Serializable]
     public class MapNode
     {
         public NodeType type;
@@ -22,6 +24,7 @@ namespace ShuYu
     }
 
     /// <summary>路线图：节点列表 + 当前位置 + 随机生成器（杀戮尖塔式分叉路线）。</summary>
+    [Serializable]
     public class RouteMap
     {
         public const int Rows = 4;          // 中间层数（不含起点与 BOSS）

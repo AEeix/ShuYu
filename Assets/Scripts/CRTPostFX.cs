@@ -13,7 +13,7 @@ namespace ShuYu
     {
         [Header("Bloom 辉光")]
         [SerializeField] float bloomThreshold = 0.6f;
-        [SerializeField] float bloomIntensity = 0.5f;
+        [SerializeField] float bloomIntensity = 0.3f;
         [SerializeField] float bloomScatter = 0.6f;
 
         [Header("暗角 / 色差")]

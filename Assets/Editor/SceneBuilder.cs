@@ -80,7 +80,7 @@ namespace ShuYu
             // 静态标题
             var titleRoot = UIFactory.CreateRect("TitleRoot", canvas.transform);
             UIFactory.Stretch(titleRoot);
-            BuildTitle(titleRoot, out Button startButton, out Button quitButton);
+            BuildTitle(titleRoot, out Button startButton, out Button continueButton, out Button quitButton);
 
             // 选职 / 路线静态框架（默认隐藏，运行时激活；动态内容仍在运行时填）
             var classSelectRoot = ClassSelectScreen.BuildStaticFrame(canvas.transform);
@@ -91,7 +91,7 @@ namespace ShuYu
             // 4. GameManager + 绑定引用
             var gmGo = new GameObject("GameManager");
             var gm = gmGo.AddComponent<GameManager>();
-            gm.BindScene(world.gameObject, titleRoot.gameObject, startButton, quitButton,
+            gm.BindScene(world.gameObject, titleRoot.gameObject, startButton, continueButton, quitButton,
                 classSelectRoot.gameObject, routeRoot.gameObject);
             gmGo.AddComponent<CRTPostFX>(); // CRT 后处理，参数在 Inspector 可调
 
@@ -103,7 +103,7 @@ namespace ShuYu
             Debug.Log("[SceneBuilder] 已生成 " + ScenePath + "，并加入 Build Settings");
         }
 
-        static void BuildTitle(Transform parent, out Button startButton, out Button quitButton)
+        static void BuildTitle(Transform parent, out Button startButton, out Button continueButton, out Button quitButton)
         {
             const float OriginX = 150f, OriginY = 150f;
             const float width = 360f;
@@ -115,10 +115,14 @@ namespace ShuYu
             var start = UIFactory.CreateButton("StartButton", parent, "开始游戏", 48, GameConfig.Accent, GameConfig.Background, null);
             PlaceAbs(start, OriginX + 60, 380, OriginX + width, 470);
 
+            var cont = UIFactory.CreateButton("ContinueButton", parent, "继续游戏", 40, GameConfig.CardBase, GameConfig.Accent, null);
+            PlaceAbs(cont, OriginX + 60, 300, OriginX + width, 370);
+
             var quit = UIFactory.CreateButton("QuitButton", parent, "退出游戏", 36, GameConfig.CardBase, GameConfig.SubText, null);
-            PlaceAbs(quit, OriginX + 60, 300, OriginX + width, 370);
+            PlaceAbs(quit, OriginX + 60, 220, OriginX + width, 290);
 
             startButton = start.GetComponent<Button>();
+            continueButton = cont.GetComponent<Button>();
             quitButton = quit.GetComponent<Button>();
         }
 

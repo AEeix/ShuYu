@@ -25,12 +25,16 @@ namespace ShuYu
         GameObject _world;   // 持久世界：背景 + 坐标轴
         Image _fade;         // 全屏黑色过渡遮罩
         bool _transitioning; // 过渡中标志（防止连点重叠）
+        TitleMathFX _titleFx;   // 标题数学动效
+        string _monsterName;    // 当前怪物名字（战斗屏显示）
+        GameObject _pauseMenu;  // 暂停菜单（ESC）
 
         // 场景化引用（SceneBuilder 生成场景时用 BindScene 注入；为空则回退到纯运行时生成）
         [SerializeField] GameObject _worldRoot;
         [SerializeField] GameObject _titleRoot;
         [SerializeField] Button _startButton;
         [SerializeField] Button _quitButton;
+        [SerializeField] Button _continueButton;
         [SerializeField] GameObject _classSelectRoot;
         [SerializeField] GameObject _routeRoot;
 
@@ -43,6 +47,7 @@ namespace ShuYu
         public TurnPhase Phase => _turn.phase;
         public bool IsGameOver => _turn.phase != TurnPhase.PlayerTurn;
         public NodeType CurrentNodeType => _route.nodes[_route.currentIndex].type;
+        public string MonsterName => _monsterName;
         public GameObject ClassSelectRoot => _classSelectRoot;
         public GameObject RouteRoot => _routeRoot;
 
@@ -64,6 +69,11 @@ namespace ShuYu
             {
                 // 场景化：标题已在场景里，只接线按钮，不再运行时生成
                 if (_startButton != null) _startButton.onClick.AddListener(ShowClassSelect);
+                if (_continueButton != null)
+                {
+                    _continueButton.onClick.AddListener(ContinueGame);
+                    _continueButton.gameObject.SetActive(SaveSystem.HasSave); // 无存档则隐藏
+                }
                 if (_quitButton != null) _quitButton.onClick.AddListener(QuitGame);
             }
             else
@@ -73,15 +83,29 @@ namespace ShuYu
 
             // CRT 后处理（辉光/暗角/色差/扫描线），幂等
             if (GetComponent<CRTPostFX>() == null) gameObject.AddComponent<CRTPostFX>();
+
+            // 标题数学动效（漂浮数字+曲线+螺旋），初始就在标题
+            _titleFx = gameObject.AddComponent<TitleMathFX>();
+            _titleFx.SetVisible(true);
+
+            // 音效
+            if (GetComponent<SfxPlayer>() == null) gameObject.AddComponent<SfxPlayer>();
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.Escape))
+                TogglePause();
         }
 
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
-        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button quitButton,
+        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button continueButton, Button quitButton,
             GameObject classSelectRoot, GameObject routeRoot)
         {
             _worldRoot = worldRoot;
             _titleRoot = titleRoot;
             _startButton = startButton;
+            _continueButton = continueButton;
             _quitButton = quitButton;
             _classSelectRoot = classSelectRoot;
             _routeRoot = routeRoot;
@@ -94,6 +118,65 @@ namespace ShuYu
 #else
             Application.Quit();
 #endif
+        }
+
+        /// <summary>切换暂停菜单（ESC）：暂停/继续。</summary>
+        void TogglePause()
+        {
+            if (_pauseMenu == null) BuildPauseMenu();
+            bool show = !_pauseMenu.activeSelf;
+            _pauseMenu.SetActive(show);
+            Time.timeScale = show ? 0f : 1f;   // 暂停时冻结时间（动画也停）
+        }
+
+        /// <summary>从暂停菜单回到标题。</summary>
+        void BackToTitle()
+        {
+            if (_pauseMenu != null) _pauseMenu.SetActive(false);
+            Time.timeScale = 1f;
+            ShowTitle();
+        }
+
+        /// <summary>建暂停菜单（继续 / 回到标题 / 退出游戏），懒加载。</summary>
+        void BuildPauseMenu()
+        {
+            var canvas = UIFactory.EnsureCanvas();
+            var root = UIFactory.CreateRect("PauseMenu", canvas.transform);
+            UIFactory.Stretch(root);
+            _pauseMenu = root.gameObject;
+
+            var mask = UIFactory.CreatePanel("Mask", root, new Color(0, 0, 0, 0.75f));
+            UIFactory.Stretch(mask.rectTransform);
+
+            var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
+            UIFactory.Place(panel.rectTransform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-300, -260), new Vector2(300, 260));
+
+            var title = UIFactory.CreateText("PauseTitle", panel.transform, "暂 停", 60, GameConfig.Accent);
+            UIFactory.Place(title.rectTransform,
+                new Vector2(0, 1), new Vector2(1, 1),
+                new Vector2(0, -100), new Vector2(0, -20));
+
+            var resume = UIFactory.CreateButton("Resume", panel.transform, "继续游戏", 48,
+                GameConfig.Accent, GameConfig.Background, TogglePause);
+            UIFactory.Place(resume,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-180, 40), new Vector2(-20, 120));
+
+            var toTitle = UIFactory.CreateButton("ToTitle", panel.transform, "回到标题", 40,
+                GameConfig.CardBase, GameConfig.SubText, BackToTitle);
+            UIFactory.Place(toTitle,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-180, -40), new Vector2(-20, 40));
+
+            var quit = UIFactory.CreateButton("Quit", panel.transform, "退出游戏", 40,
+                GameConfig.CardBase, GameConfig.SubText, QuitGame);
+            UIFactory.Place(quit,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-180, -120), new Vector2(-20, -40));
+
+            _pauseMenu.SetActive(false);
         }
 
         /// <summary>创建持久世界：深色背景 + 坐标轴（一直保留到进战斗）。</summary>
@@ -169,6 +252,7 @@ namespace ShuYu
 
         public void ShowTitle()
         {
+            if (_titleFx != null) _titleFx.SetVisible(true);
             EnsureWorld();
             Switch(() => {
                 ClearScreen();
@@ -179,6 +263,7 @@ namespace ShuYu
 
         public void ShowClassSelect()
         {
+            if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
             Switch(() => { ClearScreen(); ShowFrame(_classSelectRoot); gameObject.AddComponent<ClassSelectScreen>(); });
         }
@@ -196,7 +281,9 @@ namespace ShuYu
 
         public void ShowRoute()
         {
+            if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
+            SaveGame();   // 自动存档（路线检查点）
             Switch(() => { ClearScreen(); ShowFrame(_routeRoot); gameObject.AddComponent<RouteScreen>(); });
         }
 
@@ -217,6 +304,7 @@ namespace ShuYu
         /// <summary>BOSS 通关：进结局屏。</summary>
         public void ShowEnding()
         {
+            SaveSystem.Clear();  // 通关，清除存档
             EnsureWorld();
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<EndingScreen>(); });
         }
@@ -262,25 +350,31 @@ namespace ShuYu
         BoardState SpawnBoard(NodeType type)
         {
             var board = new BoardState(GameConfig.BoardSize);
-            if (type == NodeType.Battle)
-                SpawnMobs(board);            // 普通小怪：抽象格子，无核心，胜=清空
-            else
-                SpawnMonster(board, type);   // 精英/BOSS：部位 + 核心，胜=打爆核心
+            SpawnMonster(board, type);   // 所有战斗都用怪物形状（部位 + 核心）
             return board;
         }
 
-        /// <summary>普通小怪：固定位置铺普通数字（无核心，胜=清空）。</summary>
-        void SpawnMobs(BoardState board)
-        {
-            int[,] spots = { { 1, 1 }, { 1, 2 }, { 2, 1 }, { 2, 2 } };
-            for (int i = 0; i < 4; i++)
-                board.numbers.Add(new NumberData(2 + i, spots[i, 0], spots[i, 1]));
-        }
-
-        /// <summary>精英/BOSS：从形状目录铺「怪物形状棋盘」。BOSS 用双核心双头龙，精英三选一随机（SPEC 10）。</summary>
+        /// <summary>从形状目录铺「怪物形状棋盘」：普通史莱姆 / 精英四选一 / BOSS 双头龙。</summary>
         void SpawnMonster(BoardState board, NodeType type)
         {
-            var shape = (type == NodeType.Boss) ? MonsterShapes.BossDragon() : MonsterShapes.EliteRandom();
+            List<MonsterCell> shape;
+            string name;
+            if (type == NodeType.Battle)
+            {
+                shape = MonsterShapes.Slime();
+                name = "史莱姆";
+            }
+            else if (type == NodeType.Boss)
+            {
+                shape = MonsterShapes.BossDragon();
+                name = "BOSS·双头龙";
+            }
+            else
+            {
+                shape = MonsterShapes.EliteRandom();
+                name = "精英·" + MonsterShapes.LastEliteName;
+            }
+            _monsterName = name;
             foreach (var c in shape)
                 board.numbers.Add(new NumberData(c.value, c.row, c.col, c.kind, c.attackOrder, c.coreGroup));
         }
@@ -295,6 +389,48 @@ namespace ShuYu
         public void EndTurn()
         {
             _turn.EndTurn();
+        }
+
+        /// <summary>保存当前运行（职业/血量/卡组/路线）。</summary>
+        public void SaveGame()
+        {
+            if (_cls == null || _player == null || _deck == null || _route == null) return;
+            var data = new SaveData
+            {
+                classId = _cls.id,
+                health = _player.health,
+                deck = FullDeck(),
+                route = _route,
+            };
+            SaveSystem.Save(data);
+        }
+
+        /// <summary>继续上次运行（有存档则恢复并进路线）。</summary>
+        public void ContinueGame()
+        {
+            var data = SaveSystem.Load();
+            if (data == null) return;
+            _cls = FindClass(data.classId);
+            _player = new PlayerState(data.health);
+            _deck = new Deck(data.deck);
+            _route = data.route;
+            ShowRoute();
+        }
+
+        List<CardData> FullDeck()
+        {
+            var list = new List<CardData>();
+            list.AddRange(_deck.drawPile);
+            list.AddRange(_deck.discardPile);
+            list.AddRange(_deck.hand);
+            return list;
+        }
+
+        ClassData FindClass(string id)
+        {
+            foreach (var c in ClassCatalog.All())
+                if (c.id == id) return c;
+            return ClassCatalog.Warrior();
         }
 
         void ClearScreen()

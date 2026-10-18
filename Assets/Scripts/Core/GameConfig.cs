@@ -22,7 +22,7 @@ namespace ShuYu
         public const int InvasionMaxValue = 3;      // 入侵数字值上限
 
         // ---- 色板（SPEC 13.2）----
-        public static readonly Color Background = Hex("#0B0E14");
+        public static readonly Color Background = Hex("#0D1117");
         public static readonly Color GridLine = Hex("#1E2430");
         public static readonly Color Accent = Hex("#FFB300");      // 金 / 血条 / 强调
         public static readonly Color CardBlue = Hex("#4DA6FF");    // 减法卡
@@ -31,6 +31,7 @@ namespace ShuYu
         public static readonly Color CardBase = Hex("#161B26");    // 卡牌底
         public static readonly Color SubText = Hex("#8892A6");     // 次要文字
         public static readonly Color MonsterFill = Hex("#1E2836"); // 怪物部位暗块填充（略亮于背景，衬托发光轮廓）
+        public static readonly Color BoardOutline = Hex("#FFFFFF"); // 棋盘形状（史莱姆/怪物）外轮廓边框
 
         public static Color Hex(string hex)
         {

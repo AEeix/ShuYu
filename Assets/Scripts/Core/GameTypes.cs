@@ -22,6 +22,8 @@ namespace ShuYu
         public NumberKind kind;     // 普通 / 攻击部位 / 核心
         public int attackOrder;     // 部位固定攻击顺序（Part 用，Normal/Core 忽略）
         public int coreGroup;       // 核心归属分组（Part/Core 用，多核心 BOSS 逐核坏死；Normal 恒 0）
+        public bool burn;           // 灼烧：每回合 -1（火焰附魔/火焰魔法附加）
+        public bool frozen;         // 冰冻：跳过本轮增殖
 
         public NumberData(int value, int row, int col, NumberKind kind = NumberKind.Normal, int attackOrder = 0, int coreGroup = 0)
         {
@@ -41,26 +43,44 @@ namespace ShuYu
         public Operation op;
         public TargetType target;
         public int magnitude;
-        public int cost;   // 能量费用
+        public int cost;         // 能量费用
+        public string description; // 卡牌描述（职业专属卡用，基础卡为空）
+        public bool enchant;      // 附魔卡（如火焰附魔：下一次攻击附带灼烧）
+        public bool burns;        // 命中附带灼烧（直接火伤）
+        public bool freezes;      // 命中附带冰冻（跳过增殖）
+        public int heal;          // 治疗量（>0 为回血卡，无需目标）
 
-        public CardData(Operation op, TargetType target, int magnitude, int cost = 1)
+        public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false)
         {
             this.op = op;
             this.target = target;
             this.magnitude = magnitude;
             this.cost = cost;
+            this.description = description;
+            this.enchant = enchant;
         }
 
         public string DisplayText()
         {
+            if (enchant) return "附魔";
+            if (freezes && magnitude == 0) return "冰冻";
+            if (heal > 0) return "回血";
+            string s;
             switch (op)
             {
-                case Operation.Add: return "+" + magnitude;
-                case Operation.Subtract: return "-" + magnitude;
-                case Operation.Multiply: return "×" + magnitude;
-                case Operation.Divide: return "÷" + magnitude;
-                default: return "?" + magnitude;
+                case Operation.Add: s = "+" + magnitude; break;
+                case Operation.Subtract: s = "-" + magnitude; break;
+                case Operation.Multiply: s = "×" + magnitude; break;
+                case Operation.Divide: s = "÷" + magnitude; break;
+                default: s = "?" + magnitude; break;
             }
+            switch (target)
+            {
+                case TargetType.Row: s += " 行"; break;
+                case TargetType.Column: s += " 列"; break;
+                case TargetType.All: s += " 全"; break;
+            }
+            return s;
         }
     }
 
@@ -83,12 +103,23 @@ namespace ShuYu
             return null;
         }
 
+        /// <summary>是否是「切角」格（普通小怪战的史莱姆形状：4×4 棋盘去掉 4 个角）。</summary>
+        public bool IsCornerCell(int row, int col)
+        {
+            return (row == 0 || row == size - 1) && (col == 0 || col == size - 1);
+        }
+
         /// <summary>深拷贝快照（后续序列化用）。</summary>
         public BoardState Snapshot()
         {
             var copy = new BoardState(size);
             for (int i = 0; i < numbers.Count; i++)
-                copy.numbers.Add(new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder, numbers[i].coreGroup));
+            {
+                var n = new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder, numbers[i].coreGroup);
+                n.burn = numbers[i].burn;
+                n.frozen = numbers[i].frozen;
+                copy.numbers.Add(n);
+            }
             return copy;
         }
     }
@@ -125,6 +156,23 @@ namespace ShuYu
             if (result < 0) result = 0;   // 下限 0（消灭）
             if (result > 9) result = 9;   // 上限 9（玩家操作不会直接造出 >=10）
             return result;
+        }
+    }
+
+    /// <summary>溢出事件：一个数字溢出（≥10 爆炸）时记录，供 UI 播放爆炸动画。</summary>
+    public class OverflowEvent
+    {
+        public int row;
+        public int col;
+        public int damage;    // 造成的伤害
+        public bool isCore;   // 核心爆炸（回落到 CoreResetValue）vs 普通溢出（数字消失）
+
+        public OverflowEvent(int row, int col, int damage, bool isCore)
+        {
+            this.row = row;
+            this.col = col;
+            this.damage = damage;
+            this.isCore = isCore;
         }
     }
 }

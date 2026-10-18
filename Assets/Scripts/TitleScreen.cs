@@ -40,15 +40,22 @@ namespace ShuYu
                 () => GameManager.Instance.ShowClassSelect());
             PlaceAbs(startBtn, OriginX + 60, 380, OriginX + width, 470);
 
+            // 继续游戏（有存档才显示）
+            var contBtn = UIFactory.CreateButton("ContinueButton", _root, "继续游戏", 40,
+                GameConfig.CardBase, GameConfig.Accent,
+                () => GameManager.Instance.ContinueGame());
+            PlaceAbs(contBtn, OriginX + 60, 300, OriginX + width, 370);
+            if (!SaveSystem.HasSave) contBtn.gameObject.SetActive(false);
+
             // 设置
             var settingsBtn = UIFactory.CreateButton("SettingsButton", _root, "设置", 36,
                 GameConfig.CardBase, GameConfig.SubText, ShowSettings);
-            PlaceAbs(settingsBtn, OriginX + 60, 300, OriginX + width, 370);
+            PlaceAbs(settingsBtn, OriginX + 60, 220, OriginX + width, 290);
 
             // 退出游戏
             var quitBtn = UIFactory.CreateButton("QuitButton", _root, "退出游戏", 36,
                 GameConfig.CardBase, GameConfig.SubText, QuitGame);
-            PlaceAbs(quitBtn, OriginX + 60, 220, OriginX + width, 290);
+            PlaceAbs(quitBtn, OriginX + 60, 140, OriginX + width, 210);
         }
 
         /// <summary>打开设置面板（占位：内容待补）。</summary>

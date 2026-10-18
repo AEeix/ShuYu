@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -40,7 +41,7 @@ namespace ShuYu
 
             var classes = ClassCatalog.All();
             const float cardW = 840f;
-            const float cardH = 160f;
+            const float cardH = 200f;
             const float gap = 30f;
             float totalH = classes.Length * cardH + (classes.Length - 1) * gap;
             float topY = totalH / 2f;
@@ -56,19 +57,29 @@ namespace ShuYu
                     new Vector2(-cardW / 2f, yCenter - cardH / 2f), new Vector2(cardW / 2f, yCenter + cardH / 2f));
 
                 var img = cardRt.gameObject.AddComponent<Image>();
+                img.sprite = UIFactory.RoundedSoft;   // 圆角
+                img.type = Image.Type.Sliced;
                 img.color = GameConfig.CardBase;
+                UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(3f, -3f)); // 描边
+
                 var btn = cardRt.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
+                cardRt.gameObject.AddComponent<HoverLift>(); // 悬停抬起
 
                 var name = UIFactory.CreateText("Name", cardRt, cls.displayName, 56, GameConfig.Accent);
                 UIFactory.Place(name.rectTransform,
                     new Vector2(0, 1), new Vector2(1, 1),
-                    new Vector2(0, -110), new Vector2(0, -30));
+                    new Vector2(0, -80), new Vector2(0, -15));
 
                 var desc = UIFactory.CreateText("Desc", cardRt, cls.description, 30, GameConfig.SubText);
                 UIFactory.Place(desc.rectTransform,
+                    new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(0, -135), new Vector2(0, -80));
+
+                var deck = UIFactory.CreateText("Deck", cardRt, DeckPreview(cls), 24, GameConfig.SubText);
+                UIFactory.Place(deck.rectTransform,
                     new Vector2(0, 0), new Vector2(1, 0),
-                    new Vector2(0, 25), new Vector2(0, 75));
+                    new Vector2(20, 15), new Vector2(-20, 60));
             }
 
             var back = UIFactory.CreateButton("Back", root, "返回", 40,
@@ -78,6 +89,18 @@ namespace ShuYu
                 new Vector2(-120, 40), new Vector2(120, 120));
 
             return root;
+        }
+
+        /// <summary>起始卡组预览（去重后拼接）。</summary>
+        static string DeckPreview(ClassData cls)
+        {
+            var unique = new List<string>();
+            foreach (var c in cls.startingDeck)
+            {
+                var t = c.DisplayText();
+                if (!unique.Contains(t)) unique.Add(t);
+            }
+            return "起始卡组：" + string.Join(" · ", unique);
         }
 
         /// <summary>按名字找框架里的按钮并接线（幂等，场景框架重复进入不会累加监听）。</summary>

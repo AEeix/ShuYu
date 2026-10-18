@@ -121,10 +121,9 @@ namespace ShuYu
         public const float RoundedRadius = 18f;
 
         /// <summary>生成圆角矩形纹理（运行时 Sprite 与编辑器持久化共用，避免两处漂移）。</summary>
-        public static Texture2D CreateRoundedTexture()
+        public static Texture2D CreateRoundedTexture(float r = 18f)
         {
             const int size = 64;
-            const int r = 18;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             var cols = new Color32[size * size];
             for (int y = 0; y < size; y++)
@@ -150,6 +149,21 @@ namespace ShuYu
                 _rounded = Sprite.Create(tex, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
                 _rounded.name = "RoundedRect";
                 return _rounded;
+            }
+        }
+
+        static Sprite _roundedSoft;
+        /// <summary>圆角更小的 Sprite（卡面用，稍微圆润）。</summary>
+        public static Sprite RoundedSoft
+        {
+            get
+            {
+                if (_roundedSoft != null) return _roundedSoft;
+                const float r = 8f;
+                var tex = CreateRoundedTexture(r);
+                _roundedSoft = Sprite.Create(tex, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
+                _roundedSoft.name = "RoundedRectSoft";
+                return _roundedSoft;
             }
         }
 
@@ -207,6 +221,7 @@ namespace ShuYu
             btn.targetGraphic = img;
             var labelText = CreateText("Label", rt, label, fontSize, textColor);
             Stretch(labelText.rectTransform);
+            rt.gameObject.AddComponent<ButtonClickSound>();  // 按钮点击音（组件可序列化）
             if (onClick != null) btn.onClick.AddListener(onClick);
             return rt;
         }

@@ -82,14 +82,44 @@ namespace ShuYu
             };
         }
 
-        /// <summary>精英形状三选一随机。</summary>
+        /// <summary>普通怪「史莱姆」：瘤块 + 中央核心（心脏）。</summary>
+        public static List<MonsterCell> Slime()
+        {
+            return new List<MonsterCell>
+            {
+                new MonsterCell(1, 1, 2, NumberKind.Part, 0, 1), // 瘤块
+                new MonsterCell(1, 2, 3, NumberKind.Part, 1, 1), // 瘤块
+                new MonsterCell(2, 1, 3, NumberKind.Part, 2, 1), // 瘤块
+                new MonsterCell(2, 2, 5, NumberKind.Core, 0, 1), // 核心（心脏）
+            };
+        }
+
+        /// <summary>精英「尖叫花」：四瓣 + 中心嘴（核心）+ 茎。</summary>
+        public static List<MonsterCell> ScreamingFlower()
+        {
+            return new List<MonsterCell>
+            {
+                new MonsterCell(0, 1, 4, NumberKind.Part, 0, 1), // 上瓣
+                new MonsterCell(1, 0, 3, NumberKind.Part, 1, 1), // 左瓣
+                new MonsterCell(1, 1, 6, NumberKind.Core, 0, 1), // 核心（嘴）
+                new MonsterCell(1, 2, 3, NumberKind.Part, 2, 1), // 右瓣
+                new MonsterCell(2, 1, 3, NumberKind.Part, 3, 1), // 下瓣
+                new MonsterCell(3, 1, 3, NumberKind.Part, 4, 1), // 茎
+            };
+        }
+
+        /// <summary>最近一次精英形状的名字（供 UI 显示）。</summary>
+        public static string LastEliteName { get; private set; }
+
+        /// <summary>精英形状四选一随机。</summary>
         public static List<MonsterCell> EliteRandom()
         {
-            switch (_rng.Next(3))
+            switch (_rng.Next(4))
             {
-                case 0: return Dragon();
-                case 1: return Serpent();
-                default: return Crab();
+                case 0: LastEliteName = "龙"; return Dragon();
+                case 1: LastEliteName = "蛇"; return Serpent();
+                case 2: LastEliteName = "巨蟹"; return Crab();
+                default: LastEliteName = "尖叫花"; return ScreamingFlower();
             }
         }
     }
