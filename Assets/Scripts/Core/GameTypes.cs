@@ -82,6 +82,14 @@ namespace ShuYu
             }
             return s;
         }
+
+        /// <summary>强化卡牌：回血牌 +2 治疗；有数值的牌数值 +1；0 数值牌（附魔/冰冻）降 1 费。</summary>
+        public void Upgrade()
+        {
+            if (heal > 0) { heal += 2; return; }
+            if (magnitude > 0) { magnitude += 1; return; }
+            if (cost > 1) cost -= 1;
+        }
     }
 
     /// <summary>棋盘状态（可序列化，为 M5 异步幽灵预留）。</summary>
@@ -131,13 +139,25 @@ namespace ShuYu
     public class PlayerState
     {
         public int health;
-        public PlayerState(int health) { this.health = health; }
+        public int maxHealth;
+        public List<RelicType> relics = new List<RelicType>();
+
+        public PlayerState(int health)
+        {
+            this.health = health;
+            this.maxHealth = health;
+        }
+
+        public bool HasRelic(RelicType t) => relics.Contains(t);
+
+        /// <summary>回血（不超上限）。</summary>
+        public void Heal(int amount) { health = System.Math.Min(health + amount, maxHealth); }
     }
 
-    /// <summary>运算规则（SPEC 6.3：除法向下取整、下限 0、上限 9）。passive 为职业被动钩子。</summary>
+    /// <summary>运算规则（SPEC 6.3：除法向下取整、下限 0、上限 9）。passive 为职业被动钩子，relics 为遗物钩子。</summary>
     public static class MathOps
     {
-        public static int Apply(int current, Operation op, int magnitude, PassiveType passive = PassiveType.None)
+        public static int Apply(int current, Operation op, int magnitude, PassiveType passive = PassiveType.None, List<RelicType> relics = null)
         {
             int result = current;
             switch (op)
@@ -145,10 +165,14 @@ namespace ShuYu
                 case Operation.Add: result = current + magnitude; break;
                 case Operation.Subtract:
                     int sub = magnitude;
-                    if (passive == PassiveType.IronGrip) sub += 1;   // 铁腕：减法牌数值 +1
+                    if (passive == PassiveType.IronGrip || Has(relics, RelicType.IronTalisman)) sub += 1;   // 铁腕/铁腕护符：减法牌数值 +1
                     result = current - sub;
                     break;
-                case Operation.Multiply: result = current * magnitude; break;
+                case Operation.Multiply:
+                    int mul = magnitude;
+                    if (Has(relics, RelicType.MultiplyBoost)) mul += 1;   // 乘方增幅：乘法牌数值 +1
+                    result = current * mul;
+                    break;
                 case Operation.Divide:
                     if (magnitude == 0) { result = current; break; }
                     result = current / magnitude;                    // 向下取整
@@ -159,6 +183,8 @@ namespace ShuYu
             if (result > 9) result = 9;   // 上限 9（玩家操作不会直接造出 >=10）
             return result;
         }
+
+        static bool Has(List<RelicType> relics, RelicType t) => relics != null && relics.Contains(t);
     }
 
     /// <summary>溢出事件：一个数字溢出（≥10 爆炸）时记录，供 UI 播放爆炸动画。</summary>

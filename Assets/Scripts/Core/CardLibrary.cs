@@ -85,6 +85,11 @@ namespace ShuYu
                 Make(Operation.Subtract, 3),
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 3),
+                Make(Operation.Multiply, 2),
+                Make(Operation.Multiply, 3),
+                new CardData(Operation.Subtract, TargetType.Row, 1, 2, "削减一整行"),
+                new CardData(Operation.Subtract, TargetType.Column, 1, 2, "削减一整列"),
+                new CardData(Operation.Subtract, TargetType.All, 1, 3, "削减所有数字"),
             };
             if (passive == PassiveType.Bloodthirst)
                 pool.Add(Make(Operation.Add, 2));

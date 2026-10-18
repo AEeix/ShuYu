@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -28,13 +29,17 @@ namespace ShuYu
         TitleMathFX _titleFx;   // 标题数学动效
         string _monsterName;    // 当前怪物名字（战斗屏显示）
         GameObject _pauseMenu;  // 暂停菜单（ESC）
+        GameObject _settingsMenu;   // 设置菜单
+        TMP_Text _volLabel;         // 音量标签
+        TMP_Text _fsLabel;          // 全屏标签
 
         // 场景化引用（SceneBuilder 生成场景时用 BindScene 注入；为空则回退到纯运行时生成）
         [SerializeField] GameObject _worldRoot;
         [SerializeField] GameObject _titleRoot;
-        [SerializeField] Button _startButton;
+        [SerializeField] Button _startButton;      // 主按钮（开始游戏 / 继续游戏）
+        [SerializeField] Button _newGameButton;    // 开始新游戏（有存档才显示）
+        [SerializeField] Button _settingsButton;   // 设置
         [SerializeField] Button _quitButton;
-        [SerializeField] Button _continueButton;
         [SerializeField] GameObject _classSelectRoot;
         [SerializeField] GameObject _routeRoot;
 
@@ -48,6 +53,7 @@ namespace ShuYu
         public bool IsGameOver => _turn.phase != TurnPhase.PlayerTurn;
         public NodeType CurrentNodeType => _route.nodes[_route.currentIndex].type;
         public string MonsterName => _monsterName;
+        public bool IsShapeBoard { get; private set; }   // 当前战斗是否是精英/BOSS 形状棋盘
         public GameObject ClassSelectRoot => _classSelectRoot;
         public GameObject RouteRoot => _routeRoot;
 
@@ -67,13 +73,21 @@ namespace ShuYu
 
             if (_titleRoot != null)
             {
-                // 场景化：标题已在场景里，只接线按钮，不再运行时生成
-                if (_startButton != null) _startButton.onClick.AddListener(ShowClassSelect);
-                if (_continueButton != null)
+                // 场景化：标题已在场景里，只接线按钮
+                bool hasSave = SaveSystem.HasSave;
+                if (_startButton != null)
                 {
-                    _continueButton.onClick.AddListener(ContinueGame);
-                    _continueButton.gameObject.SetActive(SaveSystem.HasSave); // 无存档则隐藏
+                    var label = _startButton.GetComponentInChildren<TMP_Text>();
+                    if (label != null) label.text = hasSave ? "继续游戏" : "开始游戏";
+                    if (hasSave) _startButton.onClick.AddListener(ContinueGame);
+                    else _startButton.onClick.AddListener(ShowClassSelect);
                 }
+                if (_newGameButton != null)
+                {
+                    _newGameButton.onClick.AddListener(ShowClassSelect);
+                    _newGameButton.gameObject.SetActive(hasSave); // 有存档才显示「开始新游戏」
+                }
+                if (_settingsButton != null) _settingsButton.onClick.AddListener(ShowSettings);
                 if (_quitButton != null) _quitButton.onClick.AddListener(QuitGame);
             }
             else
@@ -99,13 +113,14 @@ namespace ShuYu
         }
 
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
-        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button continueButton, Button quitButton,
+        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button newGameButton, Button settingsButton, Button quitButton,
             GameObject classSelectRoot, GameObject routeRoot)
         {
             _worldRoot = worldRoot;
             _titleRoot = titleRoot;
             _startButton = startButton;
-            _continueButton = continueButton;
+            _newGameButton = newGameButton;
+            _settingsButton = settingsButton;
             _quitButton = quitButton;
             _classSelectRoot = classSelectRoot;
             _routeRoot = routeRoot;
@@ -177,6 +192,69 @@ namespace ShuYu
                 new Vector2(-180, -120), new Vector2(-20, -40));
 
             _pauseMenu.SetActive(false);
+        }
+
+        /// <summary>打开设置面板（音量 / 全屏）。</summary>
+        public void ShowSettings()
+        {
+            if (_settingsMenu != null) return;
+            BuildSettingsMenu();
+        }
+
+        void BuildSettingsMenu()
+        {
+            var canvas = UIFactory.EnsureCanvas();
+            var root = UIFactory.CreateRect("SettingsMenu", canvas.transform);
+            UIFactory.Stretch(root);
+            _settingsMenu = root.gameObject;
+
+            var mask = UIFactory.CreatePanel("Mask", root, new Color(0, 0, 0, 0.7f));
+            UIFactory.Stretch(mask.rectTransform);
+
+            var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
+            UIFactory.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-320, -280), new Vector2(320, 280));
+
+            var title = UIFactory.CreateText("Title", panel.transform, "设 置", 60, GameConfig.Accent);
+            UIFactory.Place(title.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -100), new Vector2(0, -20));
+
+            _volLabel = UIFactory.CreateText("VolLabel", panel.transform, VolText(), 40, GameConfig.SubText);
+            UIFactory.Place(_volLabel.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -180), new Vector2(0, -120));
+
+            var volDown = UIFactory.CreateButton("VolDown", panel.transform, "音量 -", 32, GameConfig.GridLine, GameConfig.SubText, VolumeDown);
+            UIFactory.Place(volDown, new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -250), new Vector2(160, -180));
+
+            var volUp = UIFactory.CreateButton("VolUp", panel.transform, "音量 +", 32, GameConfig.GridLine, GameConfig.SubText, VolumeUp);
+            UIFactory.Place(volUp, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-160, -250), new Vector2(-20, -180));
+
+            _fsLabel = UIFactory.CreateText("FsLabel", panel.transform, FsText(), 40, GameConfig.SubText);
+            UIFactory.Place(_fsLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-200, -60), new Vector2(200, 0));
+
+            var fsBtn = UIFactory.CreateButton("Fullscreen", panel.transform, "切换全屏", 32, GameConfig.GridLine, GameConfig.SubText, ToggleFullscreen);
+            UIFactory.Place(fsBtn, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-120, -120), new Vector2(120, -70));
+
+            var back = UIFactory.CreateButton("Back", panel.transform, "返 回", 40, GameConfig.Accent, GameConfig.Background, HideSettings);
+            UIFactory.Place(back, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-120, 30), new Vector2(120, 100));
+        }
+
+        string VolText() { return "音量 " + (int)(SfxPlayer.Instance != null ? SfxPlayer.Instance.Volume * 10f : 7f); }
+        string FsText() { return "全屏：" + (Screen.fullScreen ? "开" : "关"); }
+
+        void VolumeDown() { AdjustVolume(-1); if (_volLabel != null) _volLabel.text = VolText(); }
+        void VolumeUp() { AdjustVolume(1); if (_volLabel != null) _volLabel.text = VolText(); }
+        void ToggleFullscreen() { Screen.fullScreen = !Screen.fullScreen; if (_fsLabel != null) _fsLabel.text = FsText(); }
+
+        void AdjustVolume(int dir)
+        {
+            if (SfxPlayer.Instance == null) return;
+            SfxPlayer.Instance.Volume = Mathf.Clamp01(SfxPlayer.Instance.Volume + dir * 0.1f);
+        }
+
+        void HideSettings()
+        {
+            if (_settingsMenu != null) { Destroy(_settingsMenu); _settingsMenu = null; }
+            _volLabel = null;
+            _fsLabel = null;
         }
 
         /// <summary>创建持久世界：深色背景 + 坐标轴（一直保留到进战斗）。</summary>
@@ -294,6 +372,13 @@ namespace ShuYu
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CardRewardScreen>(); });
         }
 
+        /// <summary>精英胜利：获得遗物。</summary>
+        public void ShowRelicReward()
+        {
+            EnsureWorld();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<RelicRewardScreen>(); });
+        }
+
         /// <summary>选中战利品卡：加入卡组，回路线。</summary>
         public void TakeRewardCard(CardData card)
         {
@@ -318,20 +403,28 @@ namespace ShuYu
 
             if (node.type == NodeType.Camp)
             {
-                _player.health = Mathf.Min(_player.health + 5, GameConfig.InitialHealth); // 篝火回 5（不超上限）
-                ShowRoute();
+                Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CampScreen>(); });
+                return;
+            }
+            if (node.type == NodeType.Shop)
+            {
+                Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<ShopScreen>(); });
                 return;
             }
             if (node.type == NodeType.Treasure)
             {
-                _player.health = Mathf.Min(_player.health + 3, GameConfig.InitialHealth); // 宝箱回 3（占位：后续换给卡/遗物）
-                ShowRoute();
+                Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<TreasureScreen>(); });
                 return;
             }
             if (node.type == NodeType.Mystery)
             {
-                _player.health = Mathf.Min(_player.health + 2, GameConfig.InitialHealth); // 问号回 2（占位：后续换随机事件）
-                ShowRoute();
+                // 问号可能出怪：约 1/3 概率是遭遇战（普通怪）
+                if (UnityEngine.Random.value < 0.35f)
+                {
+                    StartBattle(node, NodeType.Battle);
+                    return;
+                }
+                Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<MysteryScreen>(); });
                 return;
             }
 
@@ -340,14 +433,20 @@ namespace ShuYu
 
         void StartBattle(MapNode node)
         {
-            var board = SpawnBoard(node.type);
+            StartBattle(node, node.type);
+        }
+
+        void StartBattle(MapNode node, NodeType battleType)
+        {
+            IsShapeBoard = (battleType == NodeType.Elite || battleType == NodeType.Boss);
+            var board = SpawnBoard(battleType, node.row);
             _deck.Reset();   // 每场战斗前重置卡组
             _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn);
 
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<BattleScreen>(); });
         }
 
-        BoardState SpawnBoard(NodeType type)
+        BoardState SpawnBoard(NodeType type, int row)
         {
             MonsterShape shape;
             string name;
@@ -368,10 +467,80 @@ namespace ShuYu
             }
             _monsterName = name;
 
+            int bonus = Mathf.Max(0, row - 1);   // 越靠后越强（row 越大 bonus 越高）
             var board = new BoardState(shape.rows, shape.cols);
             foreach (var c in shape.cells)
-                board.numbers.Add(new NumberData(c.value, c.row, c.col, c.kind, c.attackOrder, c.coreGroup));
+            {
+                int v = Mathf.Min(8, c.value + bonus);   // 封顶 8，避免开局即临界
+                board.numbers.Add(new NumberData(v, c.row, c.col, c.kind, c.attackOrder, c.coreGroup));
+            }
             return board;
+        }
+
+        /// <summary>回血（不超上限）。</summary>
+        public void Heal(int amount) { _player.health = Mathf.Min(_player.health + amount, _player.maxHealth); }
+
+        /// <summary>扣血。</summary>
+        public void Damage(int amount) { _player.health -= amount; }
+
+        /// <summary>强化一张随机牌，返回被强化的牌（供 UI 显示）。</summary>
+        public CardData UpgradeRandomCard()
+        {
+            var all = FullDeck();
+            if (all.Count == 0) return null;
+            var card = all[UnityEngine.Random.Range(0, all.Count)];
+            card.Upgrade();
+            return card;
+        }
+
+        /// <summary>获得一张随机奖励牌（问号事件用）。</summary>
+        public CardData AddRandomCard()
+        {
+            var choices = CardLibrary.RewardChoices(1, _cls.passive);
+            if (choices.Count == 0) return null;
+            var card = choices[0];
+            _deck.AddCard(card);
+            return card;
+        }
+
+        /// <summary>花血（够扣返回 true 并扣血）。</summary>
+        public bool SpendHealth(int amount)
+        {
+            if (_player.health <= amount) return false;
+            _player.health -= amount;
+            return true;
+        }
+
+        /// <summary>获得一个随机遗物（不重复），返回遗物（全拿过返回 null）。</summary>
+        public Relic AddRandomRelic()
+        {
+            var relic = RelicCatalog.RandomUnowned(_player.relics);
+            if (relic == null) return null;
+            _player.relics.Add(relic.type);
+            if (relic.type == RelicType.LifeCrystal)
+            {
+                _player.maxHealth += 5;
+                _player.health = _player.maxHealth;
+            }
+            return relic;
+        }
+
+        /// <summary>买牌：花血加入卡组。</summary>
+        public bool BuyCard(CardData card, int cost)
+        {
+            if (!SpendHealth(cost)) return false;
+            _deck.AddCard(card);
+            return true;
+        }
+
+        /// <summary>删一张随机牌（删不掉返回 null）。</summary>
+        public CardData RemoveRandomCard()
+        {
+            var all = FullDeck();
+            if (all.Count == 0) return null;
+            var card = all[UnityEngine.Random.Range(0, all.Count)];
+            _deck.RemoveCard(card);
+            return card;
         }
 
         /// <summary>UI 调用：出牌。</summary>
@@ -394,6 +563,8 @@ namespace ShuYu
             {
                 classId = _cls.id,
                 health = _player.health,
+                maxHealth = _player.maxHealth,
+                relics = _player.relics,
                 deck = FullDeck(),
                 route = _route,
             };
@@ -407,6 +578,8 @@ namespace ShuYu
             if (data == null) return;
             _cls = FindClass(data.classId);
             _player = new PlayerState(data.health);
+            _player.maxHealth = data.maxHealth > 0 ? data.maxHealth : data.health;
+            if (data.relics != null) _player.relics = data.relics;
             _deck = new Deck(data.deck);
             _route = data.route;
             ShowRoute();
@@ -436,6 +609,11 @@ namespace ShuYu
             var b = GetComponent<BattleScreen>(); if (b != null) Destroy(b);
             var w = GetComponent<CardRewardScreen>(); if (w != null) Destroy(w);
             var e = GetComponent<EndingScreen>(); if (e != null) Destroy(e);
+            var camp = GetComponent<CampScreen>(); if (camp != null) Destroy(camp);
+            var mystery = GetComponent<MysteryScreen>(); if (mystery != null) Destroy(mystery);
+            var shop = GetComponent<ShopScreen>(); if (shop != null) Destroy(shop);
+            var treasure = GetComponent<TreasureScreen>(); if (treasure != null) Destroy(treasure);
+            var relic = GetComponent<RelicRewardScreen>(); if (relic != null) Destroy(relic);
         }
 
         /// <summary>只显示指定场景框架（其余隐藏）。frame 为 null 则全部隐藏。</summary>

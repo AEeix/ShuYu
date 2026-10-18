@@ -38,10 +38,10 @@ namespace ShuYu
             return card;
         }
 
-        /// <summary>抽满手牌至上限。</summary>
-        public void DrawToFull()
+        /// <summary>抽满手牌至指定上限（默认 HandSize，遗物可 +1）。</summary>
+        public void DrawToFull(int handSize = HandSize)
         {
-            while (hand.Count < HandSize)
+            while (hand.Count < handSize)
                 if (Draw() == null) break;
         }
 
@@ -67,6 +67,14 @@ namespace ShuYu
             hand.Clear();
             discardPile.Clear();
             Shuffle(drawPile);
+        }
+
+        /// <summary>从卡组删一张牌（手牌/抽牌堆/弃牌堆里都找）。</summary>
+        public bool RemoveCard(CardData card)
+        {
+            if (hand.Remove(card)) return true;
+            if (drawPile.Remove(card)) return true;
+            return discardPile.Remove(card);
         }
 
         static void Shuffle(List<CardData> list)

@@ -188,6 +188,7 @@ namespace ShuYu
                 case NodeType.Camp: return GameConfig.CardGold;
                 case NodeType.Treasure: return GameConfig.Hex("#3DE0A0");
                 case NodeType.Mystery: return GameConfig.Hex("#B47CFF");
+                case NodeType.Shop: return GameConfig.Hex("#FF6EC7");
                 case NodeType.Boss: return GameConfig.Hex("#FF2222");
                 default: return GameConfig.GridLine;
             }
@@ -203,6 +204,7 @@ namespace ShuYu
                 case NodeType.Camp: return "火";
                 case NodeType.Treasure: return "宝";
                 case NodeType.Mystery: return "?";
+                case NodeType.Shop: return "店";
                 case NodeType.Boss: return "王";
                 default: return "?";
             }

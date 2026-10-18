@@ -16,12 +16,14 @@ namespace ShuYu
         TMP_Text _hpText;
         RectTransform[,] _cellRects;                     // 格子引用（目标高亮）
         readonly List<GameObject> _highlights = new List<GameObject>(); // 高亮覆盖层
+        GameObject _pileViewer;   // 抽/弃牌堆查看弹窗
 
         void Start() { Build(); }
 
         void OnDestroy()
         {
             if (_root != null) Destroy(_root.gameObject);
+            if (_pileViewer != null) Destroy(_pileViewer);
         }
 
         void Build()
@@ -96,9 +98,8 @@ namespace ShuYu
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-halfW, -halfH + upShift), new Vector2(halfW, halfH + upShift));
 
-            // 精英/BOSS 用「怪物形状」；普通小怪（史莱姆）用「史莱姆形状」（切掉四角）
-            // 注意：不能按「有没有部位/核心」判断——史莱姆也有核心/瘤块，但它是普通怪，必须保留立绘 + 身体棋盘
-            bool isMonster = GameManager.Instance.CurrentNodeType != NodeType.Battle;
+            // 精英/BOSS 用「怪物形状」；普通小怪（史莱姆，含问号遭遇战）用「史莱姆形状」（切掉四角）
+            bool isMonster = GameManager.Instance.IsShapeBoard;
             bool cutCorners = !isMonster;
 
             // 棋盘底：史莱姆战填 CardBase（史莱姆身体），怪物战融入背景
@@ -298,6 +299,16 @@ namespace ShuYu
                 new Vector2(1, 0), new Vector2(1, 0),
                 new Vector2(-500, 40), new Vector2(-40, 90));
 
+            // 抽牌堆 / 弃牌堆：可点击查看里面有哪些牌
+            var deck = gm.Turn.deck;
+            var drawBtn = UIFactory.CreateButton("DrawPile", parent, "抽牌堆 " + deck.drawPile.Count, 32,
+                GameConfig.CardBase, GameConfig.SubText, () => ShowPileViewer(deck.drawPile, "抽牌堆"));
+            UIFactory.Place(drawBtn, new Vector2(0, 0), new Vector2(0, 0), new Vector2(60, 120), new Vector2(230, 170));
+
+            var discBtn = UIFactory.CreateButton("DiscardPile", parent, "弃牌堆 " + deck.discardPile.Count, 32,
+                GameConfig.CardBase, GameConfig.SubText, () => ShowPileViewer(deck.discardPile, "弃牌堆"));
+            UIFactory.Place(discBtn, new Vector2(0, 0), new Vector2(0, 0), new Vector2(240, 120), new Vector2(410, 170));
+
             // 手牌（1~5 张，杀戮尖塔式：竖长牌形 + 圆角 + 描边，底部排开）
             var hand = gm.HandCards;
             int n = hand.Count;
@@ -357,6 +368,19 @@ namespace ShuYu
             UIFactory.Place(text.rectTransform,
                 new Vector2(0, 0.5f), new Vector2(0, 0.5f),
                 new Vector2(60, -260), new Vector2(560, -220));
+
+            // 遗物列表
+            var gm = GameManager.Instance;
+            string relicStr = "遗物：";
+            if (gm.Player.relics.Count == 0) relicStr += "无";
+            else
+                for (int i = 0; i < gm.Player.relics.Count; i++)
+                    relicStr += (i > 0 ? " · " : "") + RelicCatalog.Name(gm.Player.relics[i]);
+            var relicText = UIFactory.CreateText("Relics", parent, relicStr, 28, GameConfig.CardGold);
+            relicText.alignment = TextAlignmentOptions.Left;
+            UIFactory.Place(relicText.rectTransform,
+                new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(60, -300), new Vector2(560, -262));
         }
 
         void BuildSlimeView(Transform parent)
@@ -364,7 +388,7 @@ namespace ShuYu
             // 普通小怪战：左侧放史莱姆立绘当「怪物视图」（数字瘤块仍在下方棋盘上）；
             // 精英/BOSS 用形状棋盘自带的怪物轮廓，不放立绘
             var gm = GameManager.Instance;
-            bool isMonster = gm.CurrentNodeType != NodeType.Battle;
+            bool isMonster = gm.IsShapeBoard;
             if (isMonster) return;
 
             var slime = UIFactory.Slime;
@@ -377,6 +401,70 @@ namespace ShuYu
             UIFactory.Place(img.rectTransform,
                 new Vector2(0, 0.5f), new Vector2(0, 0.5f),
                 new Vector2(40, -200), new Vector2(440, 200));
+        }
+
+        /// <summary>抽牌堆/弃牌堆查看弹窗：变暗遮罩 + 一张张牌从上往下铺开（像手牌）。</summary>
+        void ShowPileViewer(List<CardData> pile, string title)
+        {
+            if (_pileViewer != null) Destroy(_pileViewer);
+
+            var canvas = UIFactory.EnsureCanvas();
+            var root = UIFactory.CreateRect("PileViewer", canvas.transform);
+            UIFactory.Stretch(root);
+            _pileViewer = root.gameObject;
+
+            // 变暗遮罩（点击空白处关闭）
+            var mask = UIFactory.CreatePanel("Mask", root, new Color(0, 0, 0, 0.78f));
+            UIFactory.Stretch(mask.rectTransform);
+            var maskBtn = mask.gameObject.AddComponent<Button>();
+            maskBtn.targetGraphic = mask;
+            maskBtn.onClick.AddListener(ClosePileViewer);
+
+            var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
+            UIFactory.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-360, -360), new Vector2(360, 360));
+
+            var titleText = UIFactory.CreateText("Title", panel.transform, title, 56, GameConfig.Accent);
+            UIFactory.Place(titleText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -80), new Vector2(0, -20));
+
+            var close = UIFactory.CreateButton("Close", panel.transform, "关闭", 40, GameConfig.GridLine, GameConfig.SubText, ClosePileViewer);
+            UIFactory.Place(close, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-80, 20), new Vector2(80, 90));
+
+            if (pile.Count == 0)
+            {
+                var empty = UIFactory.CreateText("Empty", panel.transform, "（空）", 40, GameConfig.SubText);
+                UIFactory.Place(empty.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -40), new Vector2(0, 40));
+                return;
+            }
+
+            // 一张张迷你卡牌从上往下铺开
+            const float cardW = 320f, cardH = 60f, gap = 8f;
+            for (int i = 0; i < pile.Count; i++)
+            {
+                var card = pile[i];
+                float top = -90 - i * (cardH + gap);
+
+                var cardRt = UIFactory.CreateRect("Card_" + i, panel.transform);
+                UIFactory.Place(cardRt, new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+                    new Vector2(-cardW / 2f, top - cardH), new Vector2(cardW / 2f, top));
+
+                var img = cardRt.gameObject.AddComponent<Image>();
+                img.sprite = UIFactory.Rounded;
+                img.type = Image.Type.Sliced;
+                img.color = GameConfig.CardBase;
+                UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
+
+                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 40, GameConfig.CardColor(card.op));
+                UIFactory.Stretch(label.rectTransform);
+
+                var cost = UIFactory.CreateText("Cost", cardRt, card.cost.ToString(), 26, GameConfig.Accent);
+                UIFactory.Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(8, -34), new Vector2(48, -10));
+            }
+        }
+
+        void ClosePileViewer()
+        {
+            if (_pileViewer != null) { Destroy(_pileViewer); _pileViewer = null; }
         }
 
         void BuildOverlay(Transform parent)
@@ -397,11 +485,17 @@ namespace ShuYu
             if (gm.Phase == TurnPhase.Won)
             {
                 SfxPlayer.Instance?.Play(SfxType.Win);
-                // 普通/精英胜利 → 三选一拿卡；BOSS 胜利 → 通关结局屏
-                bool isBoss = GameManager.Instance.CurrentNodeType == NodeType.Boss;
+                // 普通胜利 → 三选一拿卡；精英胜利 → 获得遗物；BOSS 胜利 → 通关结局屏
+                NodeType nodeType = GameManager.Instance.CurrentNodeType;
+                bool isBoss = nodeType == NodeType.Boss;
+                bool isElite = nodeType == NodeType.Elite;
                 var cont = UIFactory.CreateButton("Continue", parent, isBoss ? "查看结局" : "继续前进", 48,
                     GameConfig.Accent, GameConfig.Background,
-                    () => { if (isBoss) GameManager.Instance.ShowEnding(); else GameManager.Instance.ShowCardReward(); });
+                    () => {
+                        if (isBoss) GameManager.Instance.ShowEnding();
+                        else if (isElite) GameManager.Instance.ShowRelicReward();
+                        else GameManager.Instance.ShowCardReward();
+                    });
                 UIFactory.Place(cont,
                     new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     new Vector2(-230, -200), new Vector2(-20, -100));

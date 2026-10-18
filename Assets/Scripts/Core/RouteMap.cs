@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ShuYu
 {
-    public enum NodeType { Start, Battle, Elite, Camp, Treasure, Mystery, Boss }
+    public enum NodeType { Start, Battle, Elite, Camp, Treasure, Mystery, Shop, Boss }
 
     /// <summary>路线图节点。</summary>
     [Serializable]
@@ -27,9 +27,9 @@ namespace ShuYu
     [Serializable]
     public class RouteMap
     {
-        public const int Rows = 4;          // 中间层数（不含起点与 BOSS）
+        public const int Rows = 5;          // 中间层数（不含起点与 BOSS）
         public const int ColsPerRow = 3;    // 每层节点数
-        public const int CampRow = 2;       // 这一整层全是火堆，保证每条路必过至少一个火堆
+        public const int CampRow = 3;       // 这一整层全是火堆，保证每条路必过至少一个火堆
 
         static readonly System.Random _rng = new System.Random();
 
@@ -74,12 +74,15 @@ namespace ShuYu
             if (r == 0) return NodeType.Start;
             if (r == levels - 1) return NodeType.Boss;
             if (r == CampRow) return NodeType.Camp;   // 整层火堆（保证每条路必过）
+            if (r == 1) return NodeType.Battle;       // 开局第一层必是战斗
 
+            bool allowElite = r > CampRow;            // 精英不能太靠前：火堆之后才出现
             double rnd = _rng.NextDouble();
-            if (rnd < 0.55) return NodeType.Battle;    // 55% 战斗
-            if (rnd < 0.70) return NodeType.Elite;     // 15% 精英
-            if (rnd < 0.85) return NodeType.Treasure;  // 15% 宝箱
-            return NodeType.Mystery;                   // 15% 问号
+            if (allowElite && rnd < 0.15) return NodeType.Elite;
+            if (rnd < 0.62) return NodeType.Battle;
+            if (rnd < 0.77) return NodeType.Shop;      // 商店
+            if (rnd < 0.87) return NodeType.Treasure;
+            return NodeType.Mystery;
         }
 
         static void Connect(RouteMap map, int[] levelStart, int levels)

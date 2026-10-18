@@ -54,15 +54,17 @@ namespace ShuYu
             });
         }
 
-        /// <summary>精英「蛇形」：纵向 头/身/核/尾。</summary>
+        /// <summary>精英「蛇形」：S 形蜿蜒 头/身/核/尾。</summary>
         public static MonsterShape Serpent()
         {
             return new MonsterShape(4, 4, new List<MonsterCell>
             {
-                new MonsterCell(0, 1, 4, NumberKind.Part, 0, 1), // 头
-                new MonsterCell(1, 1, 4, NumberKind.Part, 1, 1), // 身
-                new MonsterCell(2, 1, 6, NumberKind.Core, 0, 1), // 核心
-                new MonsterCell(3, 1, 3, NumberKind.Part, 2, 1), // 尾
+                new MonsterCell(0, 0, 4, NumberKind.Part, 0, 1), // 头
+                new MonsterCell(1, 0, 4, NumberKind.Part, 1, 1), // 身
+                new MonsterCell(1, 1, 3, NumberKind.Part, 2, 1), // 身
+                new MonsterCell(2, 1, 6, NumberKind.Core, 0, 1), // 核（身体中段）
+                new MonsterCell(2, 2, 3, NumberKind.Part, 3, 1), // 身
+                new MonsterCell(3, 2, 3, NumberKind.Part, 4, 1), // 尾
             });
         }
 
@@ -93,19 +95,21 @@ namespace ShuYu
             });
         }
 
-        /// <summary>BOSS「双头龙」：双核心各喂养一侧部位，打爆一核 → 该侧部位一起坏死（SPEC 10.5）。</summary>
+        /// <summary>BOSS「双头龙」：双头 + 双核 + 共享身体，打爆一核 → 该侧头颈身尾一起坏死（SPEC 10.5）。</summary>
         public static MonsterShape BossDragon()
         {
             return new MonsterShape(4, 4, new List<MonsterCell>
             {
-                new MonsterCell(0, 1, 5, NumberKind.Part, 0, 1), // 头（核A 侧）
-                new MonsterCell(0, 2, 5, NumberKind.Part, 3, 2), // 尾（核B 侧）
-                new MonsterCell(1, 0, 4, NumberKind.Part, 1, 1), // 左爪（核A 侧）
+                new MonsterCell(0, 0, 5, NumberKind.Part, 0, 1), // 头A
+                new MonsterCell(0, 3, 5, NumberKind.Part, 4, 2), // 头B
+                new MonsterCell(1, 0, 4, NumberKind.Part, 1, 1), // 颈A
                 new MonsterCell(1, 1, 7, NumberKind.Core, 0, 1), // 核A
                 new MonsterCell(1, 2, 7, NumberKind.Core, 0, 2), // 核B
-                new MonsterCell(1, 3, 4, NumberKind.Part, 4, 2), // 右爪（核B 侧）
-                new MonsterCell(2, 0, 4, NumberKind.Part, 2, 1), // 左腿（核A 侧）
-                new MonsterCell(2, 3, 4, NumberKind.Part, 5, 2), // 右腿（核B 侧）
+                new MonsterCell(1, 3, 4, NumberKind.Part, 5, 2), // 颈B
+                new MonsterCell(2, 1, 4, NumberKind.Part, 2, 1), // 身A
+                new MonsterCell(2, 2, 4, NumberKind.Part, 6, 2), // 身B
+                new MonsterCell(3, 1, 3, NumberKind.Part, 3, 1), // 尾A
+                new MonsterCell(3, 2, 3, NumberKind.Part, 7, 2), // 尾B
             });
         }
 

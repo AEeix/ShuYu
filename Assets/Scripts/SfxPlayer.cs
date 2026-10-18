@@ -35,6 +35,13 @@ namespace ShuYu
                 _src.PlayOneShot(clip);
         }
 
+        /// <summary>音量（0~1）。</summary>
+        public float Volume
+        {
+            get { return _src != null ? _src.volume : 0.7f; }
+            set { if (_src != null) _src.volume = Mathf.Clamp01(value); }
+        }
+
         void Generate()
         {
             _clips[SfxType.Click] = Make("click", 0.05f, t => Mathf.Sin(t * 1000f) * (1f - t / 0.05f) * 0.6f);

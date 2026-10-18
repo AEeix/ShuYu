@@ -11,6 +11,8 @@ namespace ShuYu
     {
         public string classId;
         public int health;
+        public int maxHealth;
+        public List<RelicType> relics;
         public List<CardData> deck;
         public RouteMap route;
     }

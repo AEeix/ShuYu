@@ -4,16 +4,12 @@ using TMPro;
 
 namespace ShuYu
 {
-    /// <summary>标题界面：深蓝黑底 + 纯直角坐标系（原点左下、负轴微露、X 轴向右延长）+ 沿 Y 轴竖排菜单。</summary>
+    /// <summary>标题界面（运行时回退版）：主按钮按存档状态动态切换 + 开始新游戏 + 设置 + 退出。</summary>
     public class TitleScreen : MonoBehaviour
     {
-        // ---- 坐标系布局（原点在屏幕左下角）----
-        const float OriginX = 150f;    // 原点 x
-        const float OriginY = 150f;    // 原点 y
-        const float NegLen = 100f;     // 负半轴露出长度
+        const float OriginX = 150f;
 
         RectTransform _root;
-        RectTransform _settings;
 
         void Start()
         {
@@ -24,76 +20,36 @@ namespace ShuYu
             BuildMenu();
         }
 
-        /// <summary>沿 Y 轴（x=0）从上往下：标题 → 开始新游戏 → 设置 → 退出游戏（整体贴近 X 轴）。</summary>
         void BuildMenu()
         {
             const float width = 360f;
+            bool hasSave = SaveSystem.HasSave;
 
-            // 标题（最大）
             var title = UIFactory.CreateText("Title", _root, "数域", 144, GameConfig.Accent);
             title.alignment = TextAlignmentOptions.Left;
             PlaceAbs(title.rectTransform, OriginX + 60, 480, OriginX + width, 680);
 
-            // 开始新游戏（第二大）
-            var startBtn = UIFactory.CreateButton("StartButton", _root, "开始游戏", 48,
+            // 主按钮：无存档「开始游戏」，有存档「继续游戏」
+            var startBtn = UIFactory.CreateButton("StartButton", _root, hasSave ? "继续游戏" : "开始游戏", 48,
                 GameConfig.Accent, GameConfig.Background,
-                () => GameManager.Instance.ShowClassSelect());
+                () => { if (hasSave) GameManager.Instance.ContinueGame(); else GameManager.Instance.ShowClassSelect(); });
             PlaceAbs(startBtn, OriginX + 60, 380, OriginX + width, 470);
 
-            // 继续游戏（有存档才显示）
-            var contBtn = UIFactory.CreateButton("ContinueButton", _root, "继续游戏", 40,
-                GameConfig.CardBase, GameConfig.Accent,
-                () => GameManager.Instance.ContinueGame());
-            PlaceAbs(contBtn, OriginX + 60, 300, OriginX + width, 370);
-            if (!SaveSystem.HasSave) contBtn.gameObject.SetActive(false);
+            // 开始新游戏（有存档才显示）
+            var newGameBtn = UIFactory.CreateButton("NewGameButton", _root, "开始新游戏", 40,
+                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowClassSelect());
+            PlaceAbs(newGameBtn, OriginX + 60, 300, OriginX + width, 370);
+            if (!hasSave) newGameBtn.gameObject.SetActive(false);
 
             // 设置
             var settingsBtn = UIFactory.CreateButton("SettingsButton", _root, "设置", 36,
-                GameConfig.CardBase, GameConfig.SubText, ShowSettings);
+                GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.ShowSettings());
             PlaceAbs(settingsBtn, OriginX + 60, 220, OriginX + width, 290);
 
             // 退出游戏
             var quitBtn = UIFactory.CreateButton("QuitButton", _root, "退出游戏", 36,
                 GameConfig.CardBase, GameConfig.SubText, QuitGame);
             PlaceAbs(quitBtn, OriginX + 60, 140, OriginX + width, 210);
-        }
-
-        /// <summary>打开设置面板（占位：内容待补）。</summary>
-        void ShowSettings()
-        {
-            if (_settings != null) return;
-            _settings = UIFactory.CreateRect("SettingsPanel", _root);
-            UIFactory.Stretch(_settings);
-
-            var mask = UIFactory.CreatePanel("Mask", _settings, new Color(0, 0, 0, 0.6f));
-            UIFactory.Stretch(mask.rectTransform);
-
-            var panel = UIFactory.CreatePanel("Panel", _settings, GameConfig.CardBase);
-            UIFactory.Place(panel.rectTransform,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-320, -220), new Vector2(320, 220));
-
-            var title = UIFactory.CreateText("SettingsTitle", panel.transform, "设 置", 60, GameConfig.Accent);
-            UIFactory.Place(title.rectTransform,
-                new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(0, -100), new Vector2(0, -20));
-
-            var hint = UIFactory.CreateText("SettingsHint", panel.transform,
-                "设置项待补充（音量 / 画质等）", 36, GameConfig.SubText);
-            UIFactory.Place(hint.rectTransform,
-                new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(0, -200), new Vector2(0, -130));
-
-            var back = UIFactory.CreateButton("BackButton", panel.transform, "返 回", 36,
-                GameConfig.Accent, GameConfig.Background, HideSettings);
-            UIFactory.Place(back,
-                new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(-120, 30), new Vector2(120, 100));
-        }
-
-        void HideSettings()
-        {
-            if (_settings != null) { Destroy(_settings.gameObject); _settings = null; }
         }
 
         void QuitGame()

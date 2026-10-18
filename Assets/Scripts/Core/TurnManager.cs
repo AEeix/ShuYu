@@ -43,12 +43,14 @@ namespace ShuYu
             StartTurn();   // 开局先抽满手牌 + 宣言首个攻击部位
         }
 
-        /// <summary>回合开始：抽满手牌 + 回满能量 + 宣言本回合攻击部位。</summary>
+        /// <summary>回合开始：抽满手牌 + 回满能量 + 宣言本回合攻击部位（含遗物效果）。</summary>
         public void StartTurn()
         {
-            deck.DrawToFull();
+            int handSize = Deck.HandSize + (player.HasRelic(RelicType.GreedyHand) ? 1 : 0);
+            deck.DrawToFull(handSize);
             SfxPlayer.Instance?.Play(SfxType.Draw);
-            energy = energyPerTurn;
+            energy = energyPerTurn + (player.HasRelic(RelicType.EnergyCore) ? 1 : 0);
+            if (player.HasRelic(RelicType.Regen)) player.Heal(1);   // 再生之心：每回合回 1 血
             attacker = ResolveAttacker();
         }
 
@@ -128,7 +130,7 @@ namespace ShuYu
         /// <summary>对单个数字结算一次卡牌运算（压到 0 = 消灭；核心崩 → 崩同组部位；fire → 灼烧；freeze → 冰冻）。</summary>
         void ApplyToNumber(NumberData target, CardData card, bool fire, bool freeze)
         {
-            target.value = MathOps.Apply(target.value, card.op, card.magnitude, playerClass.passive);
+            target.value = MathOps.Apply(target.value, card.op, card.magnitude, playerClass.passive, player.relics);
             if (target.value <= 0)
             {
                 board.numbers.Remove(target);
@@ -202,11 +204,13 @@ namespace ShuYu
                 }
             }
             if (overflowed) SfxPlayer.Instance?.Play(SfxType.Overflow);
+
+            if (player.HasRelic(RelicType.OverflowShield)) totalDamage /= 2;   // 溢出护盾：伤害减半
             player.health -= totalDamage;
 
-            // 嗜血：溢出造成的伤害回血一半（向下取整）
-            if (playerClass.passive == PassiveType.Bloodthirst && totalDamage > 0)
-                player.health += totalDamage / 2;
+            // 嗜血（被动 / 遗物）：溢出造成的伤害回血一半（向下取整）
+            if (totalDamage > 0 && (playerClass.passive == PassiveType.Bloodthirst || player.HasRelic(RelicType.BloodRite)))
+                player.Heal(totalDamage / 2);
 
             // 4. 判胜负；未分出胜负则进入下一回合
             CheckOutcome();
