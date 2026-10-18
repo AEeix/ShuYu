@@ -29,7 +29,7 @@ namespace ShuYu
     {
         public const int Rows = 5;          // 中间层数（不含起点与 BOSS）
         public const int ColsPerRow = 3;    // 每层节点数
-        public const int CampRow = 3;       // 这一整层全是火堆，保证每条路必过至少一个火堆
+        public const int CampRow = 3;       // 火堆层：只放 1 个火堆节点，上一层所有节点汇聚到它，过完再重新分岔
 
         static readonly System.Random _rng = new System.Random();
 
@@ -46,7 +46,7 @@ namespace ShuYu
             for (int r = 0; r < levels; r++)
             {
                 levelStart[r] = map.nodes.Count;
-                int count = (r == 0 || r == levels - 1) ? 1 : ColsPerRow;
+                int count = CountOf(r, levels);
                 for (int c = 0; c < count; c++)
                 {
                     float col;
@@ -67,6 +67,17 @@ namespace ShuYu
 
             Connect(map, levelStart, levels);
             return map;
+        }
+
+        /// <summary>
+        /// 第 r 层的节点数。起点与 BOSS 各 1 个；火堆层也只放 1 个（全路汇聚的唯一火堆）；其余层 ColsPerRow 个。
+        /// 生成与连边都走这一个函数，避免两处各写一套「哪层是几个」的判断而漂移。
+        /// </summary>
+        static int CountOf(int r, int levels)
+        {
+            if (r == 0 || r == levels - 1) return 1;
+            if (r == CampRow) return 1;     // 唯一火堆
+            return ColsPerRow;
         }
 
         static NodeType PickType(int r, int levels)
@@ -90,12 +101,13 @@ namespace ShuYu
             for (int r = 0; r < levels - 1; r++)
             {
                 int curStart = levelStart[r];
-                int curCount = (r == 0) ? 1 : ColsPerRow;
+                int curCount = CountOf(r, levels);
                 int nextStart = levelStart[r + 1];
-                int nextCount = (r + 1 == levels - 1) ? 1 : ColsPerRow;
+                int nextCount = CountOf(r + 1, levels);
 
-                // 起点连到下一层全部（从原点可选所有路）
-                if (r == 0)
+                // 单节点层（起点 / 唯一火堆）：直接连下一层全部，把岔路选择权完整交给玩家。
+                // 反过来当 nextCount == 1 时（上一层汇入唯一火堆），下面的「连最近的」会让三个节点各连它一条，自然收拢。
+                if (curCount == 1)
                 {
                     for (int k = nextStart; k < nextStart + nextCount; k++)
                         map.nodes[curStart].next.Add(k);

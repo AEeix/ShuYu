@@ -71,6 +71,86 @@ namespace ShuYu
             return null;
         }
 
+        static readonly System.Collections.Generic.Dictionary<string, TMP_FontAsset> _cjkCache
+            = new System.Collections.Generic.Dictionary<string, TMP_FontAsset>();
+
+        /// <summary>
+        /// 补全中文字体 fallback 链：主字体 → 方舟像素 → 黑体。
+        /// 方舟像素只有 24850 字，实测缺 15 个游戏用到的常用字（即然避窗杀热骤斜毁旋执概奖缘施），
+        /// 其中就包含「然」，而原来只有它一层 fallback，缺字会整格显示空白。
+        /// 黑体 28522 字，实测 100% 覆盖游戏源码里出现的 799 个汉字，因此兜到黑体即可；
+        /// 思源黑体（15.8MB）虽然覆盖更全，但体积大、启动解析慢，暂不接入。
+        /// 场景化 UI 用的是烘焙进 Main.unity 的字体资产，所以这里把烘焙资产和运行时资产一起补。
+        /// </summary>
+        public static void EnsureChineseFallbacks()
+        {
+            // 内部兜异常：本方法会在一些关键路径上被调用（场景加载前 / GameManager.Start 里），
+            // 万一字体解析失败也绝不能连带把后头的按钮接线、UI 初始化一起中断。
+            try
+            {
+                var cjkBaked = Resources.Load<TMP_FontAsset>("Fonts/ShuYuCJK SDF");    // 方舟像素（烘焙）
+                var monoBaked = Resources.Load<TMP_FontAsset>("Fonts/ShuYuMono SDF");  // VT323（烘焙）
+                var simhei = LoadOrCreateCjkAsset("Fonts/SimHei");
+
+                // 方舟像素自身再往下兜一层黑体
+                if (cjkBaked != null) SetChain(cjkBaked, simhei);
+
+                // 主字体：方舟像素 → 黑体（烘焙的方舟像素存在就不必再临时创建一个，省启动开销）
+                var cjk = cjkBaked != null
+                    ? cjkBaked
+                    : LoadOrCreateCjkAsset("Fonts/ark-pixel-12px-monospaced-zh_hans");
+                if (monoBaked != null) SetChain(monoBaked, cjk, simhei);
+                if (_font != null) SetChain(_font, cjk, simhei);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[ShuYu] 字体 fallback 链补全失败，可能出现缺字：" + e.Message);
+            }
+        }
+
+        /// <summary>整体替换 fallback 表（去重、排除自身、保持给定顺序）。</summary>
+        static void SetChain(TMP_FontAsset target, params TMP_FontAsset[] chain)
+        {
+            if (target == null) return;
+            var list = new System.Collections.Generic.List<TMP_FontAsset>();
+            foreach (var a in chain)
+                if (a != null && a != target && !list.Contains(a)) list.Add(a);
+            target.fallbackFontAssetTable = list;
+        }
+
+        /// <summary>按 Resources 路径加载中文源字体并转成 TMP 资产（缓存，只建一次）。</summary>
+        static TMP_FontAsset LoadOrCreateCjkAsset(string resourcePath)
+        {
+            TMP_FontAsset cached;
+            if (_cjkCache.TryGetValue(resourcePath, out cached))
+            {
+                if (cached == null) _cjkCache.Remove(resourcePath);
+                else return cached;
+            }
+
+            var font = Resources.Load<Font>(resourcePath);
+            if (font == null) return null;
+
+            var asset = TMP_FontAsset.CreateFontAsset(font);
+            if (asset != null)
+            {
+                asset.name = System.IO.Path.GetFileName(resourcePath) + " (fallback)";
+                asset.isMultiAtlasTexturesEnabled = true;   // 兜底字体是动态图集，开多图集避免字形挤满后丢字
+                _cjkCache[resourcePath] = asset;
+            }
+            return asset;
+        }
+
+        /// <summary>
+        /// 场景加载前就补好 fallback 链。必须早于 TMP_Text 首次生成网格，
+        /// 否则已渲染的文字不会因为事后补链而刷新。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void BootstrapFontFallbacks()
+        {
+            EnsureChineseFallbacks();
+        }
+
         static TMP_FontAsset Font
         {
             get
@@ -82,22 +162,7 @@ namespace ShuYu
                 if (mono != null)
                 {
                     _font = TMP_FontAsset.CreateFontAsset(mono);
-                    if (_font != null)
-                    {
-                        _font.name = "ShuYuMono";
-
-                        // 中文 fallback：方舟像素字体（简体）
-                        var cjk = Resources.Load<Font>("Fonts/ark-pixel-12px-monospaced-zh_hans");
-                        if (cjk != null)
-                        {
-                            var cjkAsset = TMP_FontAsset.CreateFontAsset(cjk);
-                            if (cjkAsset != null)
-                            {
-                                cjkAsset.name = "ShuYuCJK";
-                                _font.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset> { cjkAsset };
-                            }
-                        }
-                    }
+                    if (_font != null) _font.name = "ShuYuMono";
                 }
 
                 // 兜底：SimHei / 内置字体
@@ -112,6 +177,13 @@ namespace ShuYu
                         if (_font != null) _font.name = "ShuYuRuntimeFont";
                     }
                 }
+
+                // 统一补中文 fallback 链（方舟像素 → 黑体）
+                if (_font != null)
+                    SetChain(_font,
+                        LoadOrCreateCjkAsset("Fonts/ark-pixel-12px-monospaced-zh_hans"),
+                        LoadOrCreateCjkAsset("Fonts/SimHei"));
+
                 return _font;
             }
         }

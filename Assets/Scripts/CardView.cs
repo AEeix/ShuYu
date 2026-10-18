@@ -31,10 +31,12 @@ namespace ShuYu
         float _lift;         // 当前抬起量
         float _curTilt;      // 当前倾斜角（平滑）
         Vector2 _basePos;    // 无抬起时的基准位置
+        readonly Vector3[] _corners = new Vector3[4];
 
         const float LiftPx = 26f;       // 抬起高度
         const float MaxTiltDeg = 12f;   // 最大倾斜角
         const float Smooth = 16f;       // 平滑跟随速度
+        const float HoverSlop = 4f;     // 悬停判定的宽容边（防抖）
 
         public void Setup(CardData card, Action<CardData> onClick, bool selected)
         {
@@ -75,15 +77,18 @@ namespace ShuYu
                     new Vector2(10, -55), new Vector2(-10, -15));
             }
 
-            // 描述（职业专属卡有，基础卡没有）
+            // 描述（职业专属卡有，基础卡没有）。字号自动缩放，长描述（如菌种培育三行）不会被截断。
             if (!string.IsNullOrEmpty(card.description))
             {
                 _desc = UIFactory.CreateText("Desc", Rect, card.description, 28,
                     selected ? GameConfig.Background : GameConfig.SubText);
                 _desc.alignment = TextAlignmentOptions.Center;
+                _desc.enableAutoSizing = true;
+                _desc.fontSizeMin = 16;
+                _desc.fontSizeMax = 28;
                 UIFactory.Place(_desc.rectTransform,
                     new Vector2(0, 0), new Vector2(1, 0),
-                    new Vector2(10, 20), new Vector2(-10, 160));
+                    new Vector2(10, 20), new Vector2(-10, 128));
             }
 
             var cost = UIFactory.CreateText("Cost", Rect, card.cost.ToString(), 40, GameConfig.Accent);
@@ -197,8 +202,16 @@ namespace ShuYu
             return 1f + c3 * Mathf.Pow(k - 1f, 3f) + c1 * Mathf.Pow(k - 1f, 2f);
         }
 
-        public void OnPointerEnter(PointerEventData e) { _hovered = true; SfxPlayer.Instance?.Play(SfxType.Hover); }
-        public void OnPointerExit(PointerEventData e) { _hovered = false; _tiltDeg = 0f; }
+        public void OnPointerEnter(PointerEventData e)
+        {
+            // 悬停状态改由 Update 里的位置判定驱动（见 UpdateHoverByPointer），这里不再改状态
+        }
+
+        public void OnPointerExit(PointerEventData e)
+        {
+            // 同上：Unity 的 Exit 会因为卡牌抬起而误触发（判定区跟着走），不能用来放下卡牌
+        }
+
         public void OnPointerMove(PointerEventData e)
         {
             if (_cam == null) return;
@@ -207,9 +220,53 @@ namespace ShuYu
             _tiltDeg = Mathf.Clamp(local.x / halfW, -1f, 1f) * MaxTiltDeg;
         }
 
+        /// <summary>
+        /// 悬停判定（修「鼠标停在卡片下侧时卡牌反复抽搐」的 bug）。
+        /// 卡牌抬起后自身矩形也上移，如果按**当前**矩形判定：鼠标在下侧边缘 → 判定区已经抬走 → 判为离开 →
+        /// 卡牌落下 → 鼠标又回到卡牌上 → 判为悬停 → 抬起 …… 每帧来回抖。
+        /// 这里改成按**未抬起时的基准矩形**判定（当前包围盒还原掉 _lift），判定区固定不动，抖动消失。
+        /// </summary>
+        void UpdateHoverByPointer()
+        {
+            if (_cam == null) return;
+            var parent = Rect.parent as RectTransform;
+            if (parent == null) return;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, Input.mousePosition, _cam, out Vector2 p))
+            {
+                SetHovered(false);
+                return;
+            }
+
+            Rect.GetWorldCorners(_corners);
+            float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 lp = parent.InverseTransformPoint(_corners[i]);
+                if (lp.x < minX) minX = lp.x;
+                if (lp.x > maxX) maxX = lp.x;
+                if (lp.y < minY) minY = lp.y;
+                if (lp.y > maxY) maxY = lp.y;
+            }
+            minY -= _lift;   // 还原到未抬起的位置 → 得到固定不动的判定区
+            maxY -= _lift;
+
+            bool inside = p.x >= minX - HoverSlop && p.x <= maxX + HoverSlop
+                       && p.y >= minY - HoverSlop && p.y <= maxY + HoverSlop;
+            SetHovered(inside);
+        }
+
+        void SetHovered(bool hovered)
+        {
+            if (hovered == _hovered) return;
+            _hovered = hovered;
+            if (hovered) SfxPlayer.Instance?.Play(SfxType.Hover);
+            else _tiltDeg = 0f;
+        }
+
         void Update()
         {
             if (_animating) return;
+            UpdateHoverByPointer();
             float targetLift = (_hovered || _selected) ? LiftPx : 0f;
             float targetTilt = _hovered ? _tiltDeg : 0f;
             _lift = Mathf.Lerp(_lift, targetLift, Time.deltaTime * Smooth);

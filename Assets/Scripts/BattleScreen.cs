@@ -222,6 +222,10 @@ namespace ShuYu
 
             bool isAttacker = gm.Turn.attacker != null && gm.Turn.attacker.row == row && gm.Turn.attacker.col == col;
 
+            // 格子状态：灼烧（橙红底 + 火焰特效）优先于毒性标记（浅紫底）
+            bool hasBurn = data != null && data.burn > 0;
+            bool hasToxin = data != null && data.toxins.Count > 0;
+
             if (data != null && data.kind == NumberKind.Part)
             {
                 // 部位：暗块填充（棋盘里的一块暗块）；攻击部位更亮橙红
@@ -229,27 +233,46 @@ namespace ShuYu
             }
             else if (data != null && data.kind == NumberKind.Core)
             {
-                // 核心：金色填充 + 金色描边 + 脉冲发光（蓄力爆炸中）
-                img.color = new Color(1f, 0.7f, 0f, 0.45f);
+                // 核心：金色描边 + 脉冲发光；带灼烧 → 橙红脉冲，带毒性 → 紫色脉冲（金描边保留，仍能看出是核心）
+                img.color = hasBurn ? GameConfig.BurnCell
+                          : hasToxin ? GameConfig.ToxinCell
+                          : new Color(1f, 0.7f, 0f, 0.45f);
                 UIFactory.AddOutline(img, GameConfig.Accent, new Vector2(3f, -3f));
-                img.gameObject.AddComponent<Pulse>().Setup(img,
-                    new Color(1f, 0.7f, 0f, 0.25f), new Color(1f, 0.7f, 0f, 0.6f));
+                var pulse = img.gameObject.AddComponent<Pulse>();
+                if (hasBurn)
+                    pulse.Setup(img, new Color(0.85f, 0.28f, 0.08f, 0.45f), new Color(1f, 0.55f, 0.15f, 0.8f));
+                else if (hasToxin)
+                    pulse.Setup(img, new Color(0.62f, 0.5f, 0.88f, 0.45f), new Color(0.78f, 0.68f, 1f, 0.8f));
+                else
+                    pulse.Setup(img, new Color(1f, 0.7f, 0f, 0.25f), new Color(1f, 0.7f, 0f, 0.6f));
             }
             else
                 img.color = new Color(0, 0, 0, 0);                 // 透明底，露出网格线
 
-            // 状态变色：灼烧橙红、冰冻冰蓝（半透明覆盖层，盖在格子底色上、文字之下）
-            if (data != null && data.burn)
+            if (hasBurn) img.color = GameConfig.BurnCell;
+            else if (hasToxin && data.kind != NumberKind.Core) img.color = GameConfig.ToxinCell;
+
+            // 灼烧 + 毒性同时在：底色给橙红（灼烧更危险），叠一层薄紫提示毒性
+            if (hasBurn && hasToxin)
             {
-                var ov = UIFactory.CreatePanel("Burn", rt, new Color(1f, 0.35f, 0.1f, 0.4f));
+                var ov = UIFactory.CreatePanel("ToxinHint", rt, new Color(0.55f, 0.35f, 1f, 0.22f));
                 ov.raycastTarget = false;
                 UIFactory.Stretch(ov.rectTransform);
             }
-            else if (data != null && data.frozen)
+
+            // 冰冻：冰蓝覆盖层（盖在格子底色上、文字之下）
+            if (data != null && data.frozen)
             {
                 var ov = UIFactory.CreatePanel("Frozen", rt, new Color(0.3f, 0.6f, 1f, 0.4f));
                 ov.raycastTarget = false;
                 UIFactory.Stretch(ov.rectTransform);
+            }
+
+            // 火焰特效：格子底部一排闪烁火苗，层数越多越旺（画在数字之前 → 数字压在火上面）
+            if (hasBurn)
+            {
+                var flame = rt.gameObject.AddComponent<CellFlame>();
+                flame.Setup(rt, data.burn);
             }
 
             var btn = go.GetComponent<Button>();
@@ -284,6 +307,38 @@ namespace ShuYu
                 mrt.pivot = new Vector2(1, 1);
                 mrt.anchoredPosition = new Vector2(-4, -2);
                 mrt.sizeDelta = new Vector2(cellSize * 0.3f, cellSize * 0.3f);
+            }
+
+            // 状态数值（格子底部一行）：灼烧层数「火N」+ 毒性标记进度「已累计/所需」（多个用 · 分隔）
+            var statusText = new System.Text.StringBuilder();
+            if (hasBurn) statusText.Append("火").Append(data.burn);
+            if (hasToxin)
+            {
+                foreach (var m in data.toxins)
+                {
+                    statusText.Append(statusText.Length > 0 ? " · " : "");
+                    statusText.Append(m.progress).Append('/').Append(m.goal);
+                }
+            }
+            if (statusText.Length > 0)
+            {
+                var tp = UIFactory.CreateText("Status", rt, statusText.ToString(), cellSize * 0.18f,
+                    new Color(0.16f, 0.06f, 0.08f));
+                UIFactory.Place(tp.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
+                    new Vector2(2, 2), new Vector2(-2, 2 + cellSize * 0.26f));
+            }
+
+            // 延迟数值（菌种培育：下个回合该格 -4）：左上角标出来，让玩家知道还没结算
+            if (data != null && data.delayedValueDelta != 0)
+            {
+                var dp = UIFactory.CreateText("Pending", rt, data.delayedValueDelta.ToString(), cellSize * 0.2f,
+                    new Color(1f, 0.55f, 0.15f));
+                var drt = dp.rectTransform;
+                drt.anchorMin = new Vector2(0, 1);
+                drt.anchorMax = new Vector2(0, 1);
+                drt.pivot = new Vector2(0, 1);
+                drt.anchoredPosition = new Vector2(3, -2);
+                drt.sizeDelta = new Vector2(cellSize * 0.5f, cellSize * 0.24f);
             }
 
         }
@@ -476,9 +531,21 @@ namespace ShuYu
             }
 
             // 大数字（中下部）
-            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 64, GameConfig.CardColor(card.op));
+            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 56, GameConfig.CardColor(card.op));
             UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(10, -170), new Vector2(-10, -55));
+                new Vector2(10, -148), new Vector2(-10, -52));
+
+            // 描述（底部；字号自动缩放，长文本不被截断）
+            if (!string.IsNullOrEmpty(card.description))
+            {
+                var desc = UIFactory.CreateText("Desc", rt, card.description, 22, GameConfig.SubText);
+                desc.alignment = TextAlignmentOptions.Center;
+                desc.enableAutoSizing = true;
+                desc.fontSizeMin = 11;
+                desc.fontSizeMax = 22;
+                UIFactory.Place(desc.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
+                    new Vector2(10, 8), new Vector2(-10, 96));
+            }
 
             // 费用（左上角）
             var cost = UIFactory.CreateText("Cost", rt, card.cost.ToString(), 36, GameConfig.Accent);
@@ -575,7 +642,12 @@ namespace ShuYu
                             if (board.At(r, c) != null) result.Add(new Vector2Int(r, c));
                     break;
                 default: // Single
-                    if (board.At(row, col) != null) result.Add(new Vector2Int(row, col));
+                    {
+                        var d = board.At(row, col);
+                        // 「不能对核心使用」的牌（镰刀横扫）不给核心高亮，避免玩家白点
+                        if (d != null && !(card.noCore && d.kind == NumberKind.Core))
+                            result.Add(new Vector2Int(row, col));
+                    }
                     break;
             }
             return result;
@@ -618,6 +690,38 @@ namespace ShuYu
                 StartCoroutine(Flash(cell));
             }
             StartCoroutine(Shake());
+        }
+
+        /// <summary>
+        /// 玩家被咬的受击反馈（原来完全没有）：怪物攻击音效（与打怪同一套）+ 红色屏闪 + 屏幕震动
+        /// + 伤害数字从攻击部位飞向血条 + 血条闪红。
+        /// </summary>
+        void SpawnPlayerHurtFeedback(int damage, Vector3 origin)
+        {
+            if (damage <= 0) return;
+            SfxPlayer.Instance?.Play(SfxType.Hit);
+            StartCoroutine(RedFlash());
+            StartCoroutine(Shake());
+            if (_hpText == null) return;
+            Vector3 from = origin != Vector3.zero ? origin : _hpText.rectTransform.position;
+            StartCoroutine(FlyDamage(damage, from));   // 内部会给血条闪红
+        }
+
+        /// <summary>受击屏闪：全屏铺一层暗红，快速淡出。</summary>
+        IEnumerator RedFlash()
+        {
+            var flash = UIFactory.CreatePanel("HurtFlash", _root, new Color(0.9f, 0.1f, 0.1f, 0.3f));
+            flash.raycastTarget = false;
+            UIFactory.Stretch(flash.rectTransform);
+            float t = 0f;
+            const float dur = 0.35f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                Color c = flash.color; c.a = 0.3f * (1f - t / dur); flash.color = c;
+                yield return null;
+            }
+            Destroy(flash.gameObject);
         }
 
         /// <summary>粒子爆发：金色小点从格子中心向外飞散并淡出。</summary>
@@ -869,6 +973,14 @@ namespace ShuYu
                 return;
             }
 
+            // 不能对核心使用的牌（镰刀横扫）：点到核心上直接提示，不消耗卡牌
+            var targetData = gm.Board.At(row, col);
+            if (_selectedCard.noCore && targetData != null && targetData.kind == NumberKind.Core)
+            {
+                if (_hintText != null) _hintText.text = (_selectedCard.cardName ?? "这张牌") + " 不能对核心使用";
+                return;
+            }
+
             var hitCells = GetTargets(_selectedCard, row, col);  // 命中格子（在 PlayCard 前记录）
 
             gm.PlayCard(_selectedCard, row, col);
@@ -886,21 +998,29 @@ namespace ShuYu
             StartCoroutine(AnimateEndTurn());
         }
 
-        /// <summary>逐步播放回合结算：攻击 → 灼烧 → 增殖 → 溢出 → 收尾。</summary>
+        /// <summary>逐步播放回合结算：攻击 → 增殖 → 溢出 → 收尾（灼烧在新回合开始时的 StartTurn 里结算）。</summary>
         IEnumerator AnimateEndTurn()
         {
-            var turn = GameManager.Instance.Turn;
+            var gm = GameManager.Instance;
+            var turn = gm.Turn;
             if (turn.phase != TurnPhase.PlayerTurn) yield break;
 
             _skipDealAnim = true;   // 中间步骤不重抽手牌动画
 
-            turn.ResolveAttack();
-            Build();
-            yield return new WaitForSeconds(0.2f);
+            // 怪物反击：先记住攻击部位在屏幕上的位置（Build 会销毁旧格子），再结算掉血
+            Vector3 attackerPos = Vector3.zero;
+            if (turn.attacker != null && _cellRects != null
+                && turn.attacker.row >= 0 && turn.attacker.row < _cellRects.GetLength(0)
+                && turn.attacker.col >= 0 && turn.attacker.col < _cellRects.GetLength(1)
+                && _cellRects[turn.attacker.row, turn.attacker.col] != null)
+                attackerPos = _cellRects[turn.attacker.row, turn.attacker.col].position;
 
-            turn.ResolveBurn();
+            int hpBefore = gm.Player.health;
+            turn.ResolveAttack();
+            int hurt = hpBefore - gm.Player.health;
             Build();
-            yield return new WaitForSeconds(0.25f);
+            if (hurt > 0) SpawnPlayerHurtFeedback(hurt, attackerPos);   // 受击音效 + 屏闪 + 伤害飞字
+            yield return new WaitForSeconds(0.2f);
 
             turn.ResolveGrowth();
             Build();
@@ -912,8 +1032,17 @@ namespace ShuYu
             yield return new WaitForSeconds(0.55f);
 
             _skipDealAnim = false;  // 收尾抽牌恢复动画
-            turn.FinishTurn();
+            turn.FinishTurn();      // 进入新回合 → StartTurn 里结算灼烧（这一帧能看到数值下降）
             Build();
+            SpawnBurnFeedback();
+        }
+
+        /// <summary>灼烧结算的反馈：屏幕轻微震动（火焰音效由 TurnManager.ResolveBurn 播放，这里不再重复播）。</summary>
+        void SpawnBurnFeedback()
+        {
+            var turn = GameManager.Instance.Turn;
+            if (turn.LastBurnTick <= 0) return;
+            StartCoroutine(Shake());
         }
     }
 }

@@ -29,6 +29,9 @@ namespace ShuYu
         public static void BuildMainScene()
         {
             // 1. 持久化字体 / 圆角 / 坐标轴资产（否则场景保存后引用会丢）
+            // 注意：方舟像素字体只有 24850 字，缺「然」等常用字，单靠它做 fallback 会显示空白。
+            // 这里只烤一层（避免生成体积巨大的字体资产），完整的兜底链（方舟像素 → 黑体 → 思源黑体）
+            // 由 UIFactory.EnsureChineseFallbacks() 在 RuntimeInitializeOnLoadMethod(BeforeSceneLoad) 补齐。
             var mono = EnsurePersistentFont("Fonts/VT323-Regular", MonoFontPath);
             var cjk = EnsurePersistentFont("Fonts/ark-pixel-12px-monospaced-zh_hans", CjkFontPath);
             if (mono != null && cjk != null)

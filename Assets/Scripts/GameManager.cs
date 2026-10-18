@@ -71,24 +71,13 @@ namespace ShuYu
             // 确保 Canvas 走相机模式（CRT 后处理需要），旧场景的 Overlay Canvas 也会在此升级
             UIFactory.EnsureCanvas();
 
+            // 补中文 fallback 链（方舟像素缺「然」等字，不补会显示空白）
+            UIFactory.EnsureChineseFallbacks();
+
             if (_titleRoot != null)
             {
-                // 场景化：标题已在场景里，只接线按钮
-                bool hasSave = SaveSystem.HasSave;
-                if (_startButton != null)
-                {
-                    var label = _startButton.GetComponentInChildren<TMP_Text>();
-                    if (label != null) label.text = hasSave ? "继续游戏" : "开始游戏";
-                    if (hasSave) _startButton.onClick.AddListener(ContinueGame);
-                    else _startButton.onClick.AddListener(ShowClassSelect);
-                }
-                if (_newGameButton != null)
-                {
-                    _newGameButton.onClick.AddListener(ShowClassSelect);
-                    _newGameButton.gameObject.SetActive(hasSave); // 有存档才显示「开始新游戏」
-                }
-                if (_settingsButton != null) _settingsButton.onClick.AddListener(ShowSettings);
-                if (_quitButton != null) _quitButton.onClick.AddListener(QuitGame);
+                // 场景化：标题已在场景里，只接线按钮（接线集中到 RefreshTitle，回到标题时会重算）
+                RefreshTitle();
             }
             else
             {
@@ -110,6 +99,74 @@ namespace ShuYu
         {
             if (Input.GetKeyDown(KeyCode.Escape))
                 TogglePause();
+        }
+
+        /// <summary>
+        /// 刷新标题界面中与「存档」有关的状态：主按钮的文字与接线、开始新游戏按钮的显隐。
+        /// 必须每次回到标题都重算——存档会在游戏过程中被创建（进路线时自动存）或被清除（死亡 / 通关），
+        /// 如果只在 Start 里算一次，就会出现「玩完一局回到标题，继续游戏没出现」或「点了继续没反应」。
+        /// </summary>
+        void RefreshTitle()
+        {
+            if (_titleRoot == null) return;
+            bool hasSave = SaveSystem.HasSave;
+
+            if (_startButton != null)
+            {
+                var label = _startButton.GetComponentInChildren<TMP_Text>();
+                if (label != null) label.text = hasSave ? "继续游戏" : "开始游戏";
+
+                // 只摘掉本类挂的这两个监听，不能 RemoveAllListeners —— 那会连 ButtonClickSound 的点击音一起删掉
+                _startButton.onClick.RemoveListener(ContinueGame);
+                _startButton.onClick.RemoveListener(ShowClassSelect);
+                if (hasSave) _startButton.onClick.AddListener(ContinueGame);
+                else _startButton.onClick.AddListener(ShowClassSelect);
+                _startButton.gameObject.SetActive(true);     // 主按钮永远可见
+            }
+            if (_newGameButton != null)
+            {
+                _newGameButton.onClick.RemoveListener(ShowClassSelect);
+                _newGameButton.onClick.AddListener(ShowClassSelect);
+                _newGameButton.gameObject.SetActive(hasSave);   // 有存档才显示「开始新游戏」
+            }
+            if (_settingsButton != null)
+            {
+                _settingsButton.onClick.RemoveListener(ShowSettings);
+                _settingsButton.onClick.AddListener(ShowSettings);
+            }
+            if (_quitButton != null)
+            {
+                _quitButton.onClick.RemoveListener(QuitGame);
+                _quitButton.onClick.AddListener(QuitGame);
+            }
+            EnsureCodexButton();   // 旧场景里没有图鉴按钮，运行时补一个
+        }
+
+        const string CodexButtonName = "CodexButton";
+
+        /// <summary>
+        /// 标题右侧的「卡牌图鉴」按钮。
+        /// 现在的 Main.unity 是更早的 SceneBuilder 生成的、里面没有这个按钮，所以运行时补一个；
+        /// 已有同名子节点就跳过，保证幂等（回到标题会被反复调用）。
+        /// </summary>
+        void EnsureCodexButton()
+        {
+            if (_titleRoot == null) return;
+            if (_titleRoot.transform.Find(CodexButtonName) != null) return;
+
+            var btn = UIFactory.CreateButton(CodexButtonName, _titleRoot.transform, "卡牌图鉴", 38,
+                GameConfig.CardBase, GameConfig.Accent, ShowCodex);
+            // 贴右侧（参考分辨率 1920×1080），右下留边距，避开左侧沿 Y 轴竖排的主菜单
+            UIFactory.Place(btn, Vector2.zero, Vector2.zero,
+                new Vector2(1480, 470), new Vector2(1820, 550));
+        }
+
+        /// <summary>打开卡牌图鉴。</summary>
+        public void ShowCodex()
+        {
+            if (_titleFx != null) _titleFx.SetVisible(false);
+            EnsureWorld();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CodexScreen>(); });
         }
 
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
@@ -332,6 +389,7 @@ namespace ShuYu
         {
             if (_titleFx != null) _titleFx.SetVisible(true);
             EnsureWorld();
+            RefreshTitle();   // 存档状态可能已变（新建 / 清除），回到标题时重算按钮
             Switch(() => {
                 ClearScreen();
                 if (_titleRoot != null) ShowFrame(_titleRoot);
@@ -353,6 +411,7 @@ namespace ShuYu
             _player = new PlayerState(GameConfig.InitialHealth);
             _deck = new Deck(cls.startingDeck);
             _route = RouteMap.Generate();
+            _battlesFought = 0;   // 新的一局：核心成长从「前两场 +3」重新算
 
             ShowRoute();
         }
@@ -441,10 +500,20 @@ namespace ShuYu
             IsShapeBoard = (battleType == NodeType.Elite || battleType == NodeType.Boss);
             var board = SpawnBoard(battleType, node.row);
             _deck.Reset();   // 每场战斗前重置卡组
-            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn);
+            _battlesFought++;
+            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn, CoreGrowthFor(battleType));
 
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<BattleScreen>(); });
         }
+
+        /// <summary>核心每回合喂养量按难度分阶段：前两场 +3（压难度）→ 之后 +4 → BOSS +5。</summary>
+        int CoreGrowthFor(NodeType battleType)
+        {
+            if (battleType == NodeType.Boss) return GameConfig.CoreGrowthBoss;
+            return _battlesFought <= 2 ? GameConfig.CoreGrowthEarly : GameConfig.CoreGrowth;
+        }
+
+        int _battlesFought;   // 本局已经打过的战斗场数（含当前这场），用于核心成长分阶段
 
         BoardState SpawnBoard(NodeType type, int row)
         {
@@ -496,7 +565,7 @@ namespace ShuYu
         /// <summary>获得一张随机奖励牌（问号事件用）。</summary>
         public CardData AddRandomCard()
         {
-            var choices = CardLibrary.RewardChoices(1, _cls.passive);
+            var choices = CardLibrary.RewardChoices(1, _cls.passive, _cls.tag);
             if (choices.Count == 0) return null;
             var card = choices[0];
             _deck.AddCard(card);
@@ -571,17 +640,30 @@ namespace ShuYu
             SaveSystem.Save(data);
         }
 
-        /// <summary>继续上次运行（有存档则恢复并进路线）。</summary>
+        /// <summary>继续上次运行（有存档则恢复并进路线；存档损坏或过期则清掉并退回选职业，避免按钮点了没反应）。</summary>
         public void ContinueGame()
         {
             var data = SaveSystem.Load();
-            if (data == null) return;
+            if (data == null || data.route == null || data.route.nodes == null || data.route.nodes.Count == 0
+                || data.deck == null || data.deck.Count == 0)
+            {
+                SaveSystem.Clear();     // 读不出来就当没有，别让「继续游戏」永远点不动
+                ShowClassSelect();
+                return;
+            }
+
+            // 旧版本存档的节点索引可能越界，夹回合法范围，避免路线界面崩溃
+            if (data.route.currentIndex < 0 || data.route.currentIndex >= data.route.nodes.Count)
+                data.route.currentIndex = 0;
+
             _cls = FindClass(data.classId);
             _player = new PlayerState(data.health);
             _player.maxHealth = data.maxHealth > 0 ? data.maxHealth : data.health;
             if (data.relics != null) _player.relics = data.relics;
             _deck = new Deck(data.deck);
             _route = data.route;
+            // 战斗场数没有存档，用「已走过的节点数」当代理（只会偏大，不会让后期怪退回 +3）
+            _battlesFought = data.route.currentIndex;
             ShowRoute();
         }
 
@@ -614,6 +696,7 @@ namespace ShuYu
             var shop = GetComponent<ShopScreen>(); if (shop != null) Destroy(shop);
             var treasure = GetComponent<TreasureScreen>(); if (treasure != null) Destroy(treasure);
             var relic = GetComponent<RelicRewardScreen>(); if (relic != null) Destroy(relic);
+            var codex = GetComponent<CodexScreen>(); if (codex != null) Destroy(codex);
         }
 
         /// <summary>只显示指定场景框架（其余隐藏）。frame 为 null 则全部隐藏。</summary>

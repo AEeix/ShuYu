@@ -30,7 +30,7 @@ namespace ShuYu
             UIFactory.Place(_result.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, 100), new Vector2(0, 180));
 
             // 3 张可买卡（每张 4 血）
-            var choices = CardLibrary.RewardChoices(3, gm.PlayerClass.passive);
+            var choices = CardLibrary.RewardChoices(3, gm.PlayerClass.passive, gm.PlayerClass.tag);
             const float cardW = 200f, gap = 40f;
             float totalW = choices.Count * cardW + (choices.Count - 1) * gap;
             float startX = -totalW / 2f;

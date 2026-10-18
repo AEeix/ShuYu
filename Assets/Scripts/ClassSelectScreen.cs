@@ -69,17 +69,12 @@ namespace ShuYu
                 var name = UIFactory.CreateText("Name", cardRt, cls.displayName, 56, GameConfig.Accent);
                 UIFactory.Place(name.rectTransform,
                     new Vector2(0, 1), new Vector2(1, 1),
-                    new Vector2(0, -80), new Vector2(0, -15));
+                    new Vector2(0, -90), new Vector2(0, -20));
 
                 var desc = UIFactory.CreateText("Desc", cardRt, cls.description, 30, GameConfig.SubText);
                 UIFactory.Place(desc.rectTransform,
                     new Vector2(0, 1), new Vector2(1, 1),
-                    new Vector2(0, -135), new Vector2(0, -80));
-
-                var deck = UIFactory.CreateText("Deck", cardRt, DeckPreview(cls), 24, GameConfig.SubText);
-                UIFactory.Place(deck.rectTransform,
-                    new Vector2(0, 0), new Vector2(1, 0),
-                    new Vector2(20, 15), new Vector2(-20, 60));
+                    new Vector2(0, -150), new Vector2(0, -95));
             }
 
             var back = UIFactory.CreateButton("Back", root, "返回", 40,
@@ -89,18 +84,6 @@ namespace ShuYu
                 new Vector2(-120, 40), new Vector2(120, 120));
 
             return root;
-        }
-
-        /// <summary>起始卡组预览（去重后拼接）。</summary>
-        static string DeckPreview(ClassData cls)
-        {
-            var unique = new List<string>();
-            foreach (var c in cls.startingDeck)
-            {
-                var t = c.DisplayText();
-                if (!unique.Contains(t)) unique.Add(t);
-            }
-            return "起始卡组：" + string.Join(" · ", unique);
         }
 
         /// <summary>按名字找框架里的按钮并接线（幂等，场景框架重复进入不会累加监听）。</summary>

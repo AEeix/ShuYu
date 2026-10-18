@@ -50,6 +50,11 @@ namespace ShuYu
             var quitBtn = UIFactory.CreateButton("QuitButton", _root, "退出游戏", 36,
                 GameConfig.CardBase, GameConfig.SubText, QuitGame);
             PlaceAbs(quitBtn, OriginX + 60, 140, OriginX + width, 210);
+
+            // 卡牌图鉴（贴右侧，与 GameManager.EnsureCodexButton 位置保持一致）
+            var codexBtn = UIFactory.CreateButton("CodexButton", _root, "卡牌图鉴", 38,
+                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowCodex());
+            PlaceAbs(codexBtn, 1480, 470, 1820, 550);
         }
 
         void QuitGame()

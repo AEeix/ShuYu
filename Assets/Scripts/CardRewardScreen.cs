@@ -20,7 +20,7 @@ namespace ShuYu
                 new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(0, -190), new Vector2(0, -70));
 
-            var choices = CardLibrary.RewardChoices(3, GameManager.Instance.PlayerClass.passive);
+            var choices = CardLibrary.RewardChoices(3, GameManager.Instance.PlayerClass.passive, GameManager.Instance.PlayerClass.tag);
 
             const float cardW = 220f;
             const float cardH = 320f;
@@ -56,9 +56,22 @@ namespace ShuYu
                         new Vector2(10, -56), new Vector2(-10, -14));
                 }
 
-                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 88, GameConfig.CardColor(card.op));
+                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 72, GameConfig.CardColor(card.op));
                 UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-                    new Vector2(10, -220), new Vector2(-10, -60));
+                    new Vector2(10, -176), new Vector2(-10, -58));
+
+                // 描述（原本完全没画 → 「全力进攻 / 削减一整行」这类牌在奖励界面看不到完整效果）。
+                // 字号自动缩放，保证多行文本整段显示不被截断。
+                if (!string.IsNullOrEmpty(card.description))
+                {
+                    var desc = UIFactory.CreateText("Desc", cardRt, card.description, 26, GameConfig.SubText);
+                    desc.alignment = TextAlignmentOptions.Center;
+                    desc.enableAutoSizing = true;
+                    desc.fontSizeMin = 13;
+                    desc.fontSizeMax = 26;
+                    UIFactory.Place(desc.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
+                        new Vector2(10, 12), new Vector2(-10, 140));
+                }
 
                 var cost = UIFactory.CreateText("Cost", cardRt, card.cost.ToString(), 40, GameConfig.Accent);
                 UIFactory.Place(cost.rectTransform,
