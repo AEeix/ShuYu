@@ -88,10 +88,12 @@ namespace ShuYu
     [Serializable]
     public class BoardState
     {
-        public int size;
+        public int rows;   // 行数（高）
+        public int cols;   // 列数（宽）
         public List<NumberData> numbers = new List<NumberData>();
 
-        public BoardState(int size) { this.size = size; }
+        public BoardState(int rows, int cols) { this.rows = rows; this.cols = cols; }
+        public BoardState(int size) : this(size, size) { }   // 正方形快捷构造
 
         public NumberData At(int row, int col)
         {
@@ -103,16 +105,16 @@ namespace ShuYu
             return null;
         }
 
-        /// <summary>是否是「切角」格（普通小怪战的史莱姆形状：4×4 棋盘去掉 4 个角）。</summary>
+        /// <summary>是否是「切角」格（普通小怪战的史莱姆形状：去掉四个角）。</summary>
         public bool IsCornerCell(int row, int col)
         {
-            return (row == 0 || row == size - 1) && (col == 0 || col == size - 1);
+            return (row == 0 || row == rows - 1) && (col == 0 || col == cols - 1);
         }
 
         /// <summary>深拷贝快照（后续序列化用）。</summary>
         public BoardState Snapshot()
         {
-            var copy = new BoardState(size);
+            var copy = new BoardState(rows, cols);
             for (int i = 0; i < numbers.Count; i++)
             {
                 var n = new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder, numbers[i].coreGroup);

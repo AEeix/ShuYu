@@ -77,23 +77,26 @@ namespace ShuYu
         {
             var gm = GameManager.Instance;
             var board = gm.Board;
-            int size = board.size;
+            int rows = board.rows;
+            int cols = board.cols;
 
-            _cellRects = new RectTransform[size, size];
+            _cellRects = new RectTransform[rows, cols];
             _highlights.Clear();
 
-            // 棋盘区域固定，格子大小按尺寸自动计算；无间距，格子连成一块
-            float boardArea = 360f;   // 缩小棋盘
-            float cellSize = boardArea / size;
-            float half = boardArea * 0.5f;
+            // 棋盘高度固定，格子大小按行数算；宽度随列数变化（巨蟹 6 列更宽）
+            float boardArea = 360f;
+            float cellSize = boardArea / rows;
+            float halfH = boardArea * 0.5f;
+            float boardWidth = cellSize * cols;
+            float halfW = boardWidth * 0.5f;
             float upShift = 120f;     // 上移棋盘
 
             var container = UIFactory.CreateRect("Board", parent);
             UIFactory.Place(container,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-half, -half + upShift), new Vector2(half, half + upShift));
+                new Vector2(-halfW, -halfH + upShift), new Vector2(halfW, halfH + upShift));
 
-            // 精英/BOSS 用「怪物形状」；普通小怪（史莱姆）用「史莱姆形状」（4×4 切掉四角）
+            // 精英/BOSS 用「怪物形状」；普通小怪（史莱姆）用「史莱姆形状」（切掉四角）
             // 注意：不能按「有没有部位/核心」判断——史莱姆也有核心/瘤块，但它是普通怪，必须保留立绘 + 身体棋盘
             bool isMonster = GameManager.Instance.CurrentNodeType != NodeType.Battle;
             bool cutCorners = !isMonster;
@@ -107,17 +110,17 @@ namespace ShuYu
             UIFactory.Stretch(cells);
             var grid = cells.gameObject.AddComponent<GridLayoutGroup>();
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = size;
+            grid.constraintCount = cols;
             grid.cellSize = new Vector2(cellSize, cellSize);
             grid.spacing = Vector2.zero;
             grid.childAlignment = TextAnchor.MiddleCenter;
 
-            for (int row = 0; row < size; row++)
-                for (int col = 0; col < size; col++)
+            for (int row = 0; row < rows; row++)
+                for (int col = 0; col < cols; col++)
                     CreateCell(cells, row, col, cellSize, cutCorners && board.IsCornerCell(row, col));
 
             // 棋盘形状的轮廓（内部格子线 + 外轮廓边框）统一画在最上层
-            DrawShapeOutline(container, size, cellSize, boardArea, isMonster);
+            DrawShapeOutline(container, rows, cols, cellSize, isMonster);
         }
 
         void DrawGridLine(Transform container, int i, float cellSize, float lineW, float boardArea)
@@ -138,7 +141,7 @@ namespace ShuYu
         /// <summary>格子是否属于「棋盘形状」：史莱姆=非切角格；怪物=部位/核心格。</summary>
         bool IsShapeCell(BoardState board, bool isMonster, int row, int col)
         {
-            if (row < 0 || row >= board.size || col < 0 || col >= board.size) return false; // 出界 → 非形状（该边画外轮廓）
+            if (row < 0 || row >= board.rows || col < 0 || col >= board.cols) return false; // 出界 → 非形状（该边画外轮廓）
             if (isMonster)
             {
                 var d = board.At(row, col);
@@ -148,33 +151,33 @@ namespace ShuYu
         }
 
         /// <summary>画棋盘形状（史莱姆/怪物）的轮廓：先内部格子线（SubText），再外轮廓边框（白色，盖在最上）。</summary>
-        void DrawShapeOutline(Transform container, int size, float cellSize, float boardArea, bool isMonster)
+        void DrawShapeOutline(Transform container, int rows, int cols, float cellSize, bool isMonster)
         {
             var board = GameManager.Instance.Board;
             const float outerW = 10f;   // 外轮廓白边（加粗）
             const float innerW = 10f;   // 内部格子线（与外轮廓同粗）
 
             // 第一遍：内部格子线（只查右/下，避免重复画）
-            for (int row = 0; row < size; row++)
-            for (int col = 0; col < size; col++)
+            for (int row = 0; row < rows; row++)
+            for (int col = 0; col < cols; col++)
             {
                 if (!IsShapeCell(board, isMonster, row, col)) continue;
 
                 float x0 = col * cellSize, x1 = (col + 1) * cellSize;
-                float y0 = (size - 1 - row) * cellSize, y1 = (size - row) * cellSize;
+                float y0 = (rows - 1 - row) * cellSize, y1 = (rows - row) * cellSize;
 
                 if (IsShapeCell(board, isMonster, row, col + 1)) DrawEdge(container, x1, y0, x1, y1, innerW, GameConfig.SubText, false);
                 if (IsShapeCell(board, isMonster, row + 1, col)) DrawEdge(container, x0, y0, x1, y0, innerW, GameConfig.SubText, true);
             }
 
             // 第二遍：外轮廓（白色，画在最上层，盖住内部线越界到边界处的部分）
-            for (int row = 0; row < size; row++)
-            for (int col = 0; col < size; col++)
+            for (int row = 0; row < rows; row++)
+            for (int col = 0; col < cols; col++)
             {
                 if (!IsShapeCell(board, isMonster, row, col)) continue;
 
                 float x0 = col * cellSize, x1 = (col + 1) * cellSize;
-                float y0 = (size - 1 - row) * cellSize, y1 = (size - row) * cellSize;
+                float y0 = (rows - 1 - row) * cellSize, y1 = (rows - row) * cellSize;
 
                 if (!IsShapeCell(board, isMonster, row - 1, col)) DrawEdge(container, x0, y1, x1, y1, outerW, GameConfig.BoardOutline, true);
                 if (!IsShapeCell(board, isMonster, row + 1, col)) DrawEdge(container, x0, y0, x1, y0, outerW, GameConfig.BoardOutline, true);
@@ -442,16 +445,16 @@ namespace ShuYu
             switch (card.target)
             {
                 case TargetType.Row:
-                    for (int c = 0; c < board.size; c++)
+                    for (int c = 0; c < board.cols; c++)
                         if (board.At(row, c) != null) result.Add(new Vector2Int(row, c));
                     break;
                 case TargetType.Column:
-                    for (int r = 0; r < board.size; r++)
+                    for (int r = 0; r < board.rows; r++)
                         if (board.At(r, col) != null) result.Add(new Vector2Int(r, col));
                     break;
                 case TargetType.All:
-                    for (int r = 0; r < board.size; r++)
-                        for (int c = 0; c < board.size; c++)
+                    for (int r = 0; r < board.rows; r++)
+                        for (int c = 0; c < board.cols; c++)
                             if (board.At(r, c) != null) result.Add(new Vector2Int(r, c));
                     break;
                 default: // Single

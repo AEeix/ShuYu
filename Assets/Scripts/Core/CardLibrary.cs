@@ -75,18 +75,19 @@ namespace ShuYu
 
         static readonly System.Random _rng = new System.Random();
 
-        /// <summary>战斗胜利战利品：从通用牌池随机抽 count 张（不重复）。职业专属牌池待 ② 再并入。</summary>
-        public static List<CardData> RewardChoices(int count)
+        /// <summary>战斗胜利战利品：从通用牌池随机抽 count 张（不重复）。加法牌是收割者专属（溢出收割），非嗜血职业不给。</summary>
+        public static List<CardData> RewardChoices(int count, PassiveType passive = PassiveType.None)
         {
             var pool = new List<CardData>
             {
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 2),
                 Make(Operation.Subtract, 3),
-                Make(Operation.Add, 2),
                 Make(Operation.Divide, 2),
                 Make(Operation.Divide, 3),
             };
+            if (passive == PassiveType.Bloodthirst)
+                pool.Add(Make(Operation.Add, 2));
             for (int i = pool.Count - 1; i > 0; i--)
             {
                 int j = _rng.Next(i + 1);
@@ -115,7 +116,6 @@ namespace ShuYu
                 Make(Operation.Subtract, 3),
                 Make(Operation.Subtract, 1),
                 Make(Operation.Divide, 2),
-                Make(Operation.Add, 2),
             };
         }
 
@@ -133,7 +133,6 @@ namespace ShuYu
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 2),
                 Make(Operation.Subtract, 2),
-                Make(Operation.Add, 2),
             };
         }
 

@@ -105,7 +105,7 @@ namespace ShuYu
 
         static void BuildTitle(Transform parent, out Button startButton, out Button continueButton, out Button quitButton)
         {
-            const float OriginX = 150f, OriginY = 150f;
+            const float OriginX = 150f;
             const float width = 360f;
 
             var title = UIFactory.CreateText("Title", parent, "数域", 144, GameConfig.Accent);

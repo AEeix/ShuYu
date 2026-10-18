@@ -19,7 +19,7 @@ namespace ShuYu
                 new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(0, -190), new Vector2(0, -70));
 
-            var choices = CardLibrary.RewardChoices(3);
+            var choices = CardLibrary.RewardChoices(3, GameManager.Instance.PlayerClass.passive);
 
             const float cardW = 220f;
             const float cardH = 320f;

@@ -349,15 +349,7 @@ namespace ShuYu
 
         BoardState SpawnBoard(NodeType type)
         {
-            var board = new BoardState(GameConfig.BoardSize);
-            SpawnMonster(board, type);   // 所有战斗都用怪物形状（部位 + 核心）
-            return board;
-        }
-
-        /// <summary>从形状目录铺「怪物形状棋盘」：普通史莱姆 / 精英四选一 / BOSS 双头龙。</summary>
-        void SpawnMonster(BoardState board, NodeType type)
-        {
-            List<MonsterCell> shape;
+            MonsterShape shape;
             string name;
             if (type == NodeType.Battle)
             {
@@ -375,8 +367,11 @@ namespace ShuYu
                 name = "精英·" + MonsterShapes.LastEliteName;
             }
             _monsterName = name;
-            foreach (var c in shape)
+
+            var board = new BoardState(shape.rows, shape.cols);
+            foreach (var c in shape.cells)
                 board.numbers.Add(new NumberData(c.value, c.row, c.col, c.kind, c.attackOrder, c.coreGroup));
+            return board;
         }
 
         /// <summary>UI 调用：出牌。</summary>

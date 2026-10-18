@@ -6,3 +6,5 @@
 /Build/
 /compile.log
 _compile_check.log
+_demo_*.log
+.idea/

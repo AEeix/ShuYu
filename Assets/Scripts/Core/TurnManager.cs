@@ -231,15 +231,15 @@ namespace ShuYu
         void SpawnInvader()
         {
             var empty = new List<int>();
-            for (int r = 0; r < board.size; r++)
-                for (int c = 0; c < board.size; c++)
+            for (int r = 0; r < board.rows; r++)
+                for (int c = 0; c < board.cols; c++)
                     if (board.At(r, c) == null && !board.IsCornerCell(r, c))   // 史莱姆形状：切角格不投新数字
-                        empty.Add(r * board.size + c);
+                        empty.Add(r * board.cols + c);
             if (empty.Count == 0) return;
 
             int idx = empty[_rng.Next(empty.Count)];
             int value = _rng.Next(GameConfig.InvasionMinValue, GameConfig.InvasionMaxValue + 1);
-            board.numbers.Add(new NumberData(value, idx / board.size, idx % board.size));
+            board.numbers.Add(new NumberData(value, idx / board.cols, idx % board.cols));
         }
 
         void CheckOutcome()
