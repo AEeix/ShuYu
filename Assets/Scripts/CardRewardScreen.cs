@@ -46,8 +46,18 @@ namespace ShuYu
                 var btn = cardRt.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
 
-                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 96, GameConfig.CardColor(card.op));
-                UIFactory.Stretch(label.rectTransform);
+                // 名字（顶部）
+                if (!string.IsNullOrEmpty(card.cardName))
+                {
+                    var name = UIFactory.CreateText("Name", cardRt, card.cardName, 30, GameConfig.SubText);
+                    name.alignment = TextAlignmentOptions.Center;
+                    UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                        new Vector2(10, -56), new Vector2(-10, -14));
+                }
+
+                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 88, GameConfig.CardColor(card.op));
+                UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(10, -220), new Vector2(-10, -60));
 
                 var cost = UIFactory.CreateText("Cost", cardRt, card.cost.ToString(), 40, GameConfig.Accent);
                 UIFactory.Place(cost.rectTransform,

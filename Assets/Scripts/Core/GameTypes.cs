@@ -45,12 +45,13 @@ namespace ShuYu
         public int magnitude;
         public int cost;         // 能量费用
         public string description; // 卡牌描述（职业专属卡用，基础卡为空）
+        public string cardName;   // 卡牌名字（如「重击」「铁腕重击」）
         public bool enchant;      // 附魔卡（如火焰附魔：下一次攻击附带灼烧）
         public bool burns;        // 命中附带灼烧（直接火伤）
         public bool freezes;      // 命中附带冰冻（跳过增殖）
         public int heal;          // 治疗量（>0 为回血卡，无需目标）
 
-        public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false)
+        public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false, string cardName = null)
         {
             this.op = op;
             this.target = target;
@@ -58,6 +59,14 @@ namespace ShuYu
             this.cost = cost;
             this.description = description;
             this.enchant = enchant;
+            // 名字：显式传入优先；否则从「名字：描述」里取「名字」；都没有则空
+            if (cardName != null) this.cardName = cardName;
+            else if (description != null)
+            {
+                int idx = description.IndexOf('：');
+                this.cardName = idx > 0 ? description.Substring(0, idx) : description;
+            }
+            else this.cardName = null;
         }
 
         public string DisplayText()

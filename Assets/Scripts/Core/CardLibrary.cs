@@ -10,7 +10,25 @@ namespace ShuYu
     {
         public static CardData Make(Operation op, int magnitude, int cost = 1)
         {
-            return new CardData(op, TargetType.Single, magnitude, cost);
+            return new CardData(op, TargetType.Single, magnitude, cost, null, false, AutoName(op, magnitude));
+        }
+
+        /// <summary>基础卡自动命名（按运算 + 数值）。</summary>
+        static string AutoName(Operation op, int magnitude)
+        {
+            switch (op)
+            {
+                case Operation.Subtract:
+                    return magnitude >= 3 ? "重击" : (magnitude >= 2 ? "重削" : "削减");
+                case Operation.Add:
+                    return magnitude >= 5 ? "引爆" : "催爆";
+                case Operation.Divide:
+                    return magnitude == 2 ? "折半" : "分割";
+                case Operation.Multiply:
+                    return magnitude == 2 ? "倍增" : "倍化";
+                default:
+                    return "运算";
+            }
         }
 
         /// <summary>战士专属卡：铁腕重击（2 费，-5，配被动「铁腕」实际 -6）。</summary>

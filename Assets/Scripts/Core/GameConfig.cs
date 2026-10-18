@@ -13,7 +13,7 @@ namespace ShuYu
         public const int EnergyPerTurn = 3;         // 每回合能量（出牌扣费结算）
         public const int OverflowThreshold = 9;     // 数字 > 9 触发溢出（即 >= 10）
         public const int InitialEnemyValue = 6;     // M0 小怪初始值（可调到 8/9 更快演示溢出）
-        public const int CoreGrowth = 2;            // 核心每回合喂养量（占位待调）
+        public const int CoreGrowth = 3;            // 核心每回合喂养量（占位待调）
         public const int CoreExplosionDamage = 5;   // 核心爆炸固定伤害（占位待调）
         public const int CoreResetValue = 3;        // 核心爆炸后回落值（占位待调）
         public const int InvasionInterval = 2;      // 每 N 回合触发一次数字入侵

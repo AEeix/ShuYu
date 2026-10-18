@@ -144,23 +144,32 @@ namespace ShuYu
             }
         }
 
-        /// <summary>结束回合：怪物攻击 → 增殖 → 核心爆炸/溢出 → 判胜负，未分胜负则进入下一回合。</summary>
+        /// <summary>结束回合（一次性结算，兼容旧调用）：攻击 → 灼烧 → 增殖 → 溢出 → 判胜负。</summary>
         public void EndTurn()
         {
             if (phase != TurnPhase.PlayerTurn) return;
+            ResolveAttack();
+            ResolveBurn();
+            ResolveGrowth();
+            ResolveOverflow();
+            FinishTurn();
+        }
 
-            _lastOverflow.Clear();
-
-            // 1. 怪物攻击结算：宣言部位还活着 → 扣「当前值」血（被减 = 减伤，被打掉 = 打断无伤）
+        /// <summary>怪物攻击结算：宣言部位还活着 → 扣「当前值」血（被减 = 减伤，被打掉 = 打断无伤）。</summary>
+        public void ResolveAttack()
+        {
             if (attacker != null && board.numbers.Contains(attacker))
                 player.health -= attacker.value;
+        }
 
-            // 1.5 灼烧：每回合 -1，烧到 0 消灭（核心崩 → 崩同组部位）
+        /// <summary>灼烧结算：每回合 -1，烧到 0 消灭（核心崩 → 崩同组部位）。</summary>
+        public void ResolveBurn()
+        {
             var burned = board.numbers.FindAll(n => n.burn);
             if (burned.Count > 0) SfxPlayer.Instance?.Play(SfxType.Burn);
             foreach (var n in burned)
             {
-                if (!board.numbers.Contains(n)) continue; // 已被核心崩解移除
+                if (!board.numbers.Contains(n)) continue;
                 n.value -= 1;
                 if (n.value <= 0)
                 {
@@ -169,16 +178,23 @@ namespace ShuYu
                         board.numbers.RemoveAll(x => x.kind == NumberKind.Part && x.coreGroup == n.coreGroup);
                 }
             }
+        }
 
-            // 2. 增殖：普通/部位 +1，核心 +2（喂养）；冰冻的数字跳过增殖
+        /// <summary>增殖：普通/部位 +1，核心 +2（喂养）；冰冻的数字跳过增殖。</summary>
+        public void ResolveGrowth()
+        {
             for (int i = 0; i < board.numbers.Count; i++)
             {
                 var n = board.numbers[i];
-                if (n.frozen) { n.frozen = false; continue; }  // 冰冻：跳过本轮增殖
-                n.value += (n.kind == NumberKind.Core) ? GameConfig.CoreGrowth : 1;
+                if (n.frozen) { n.frozen = false; continue; }
+                n.value += (n.kind == NumberKind.Core) ? GameConfig.CoreGrowth : 2;
             }
+        }
 
-            // 3. 溢出 + 核心爆炸
+        /// <summary>溢出 + 核心爆炸：≥10 的普通数字消失、核心爆炸回落；扣血并记录溢出事件。</summary>
+        public void ResolveOverflow()
+        {
+            _lastOverflow.Clear();
             int totalDamage = 0;
             bool overflowed = false;
             for (int i = board.numbers.Count - 1; i >= 0; i--)
@@ -211,8 +227,11 @@ namespace ShuYu
             // 嗜血（被动 / 遗物）：溢出造成的伤害回血一半（向下取整）
             if (totalDamage > 0 && (playerClass.passive == PassiveType.Bloodthirst || player.HasRelic(RelicType.BloodRite)))
                 player.Heal(totalDamage / 2);
+        }
 
-            // 4. 判胜负；未分出胜负则进入下一回合
+        /// <summary>判胜负；未分胜负则进入下一回合（回合数 +1、入侵、抽牌）。</summary>
+        public void FinishTurn()
+        {
             CheckOutcome();
             if (phase == TurnPhase.PlayerTurn)
             {

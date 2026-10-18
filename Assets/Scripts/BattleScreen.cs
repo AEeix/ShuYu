@@ -17,6 +17,7 @@ namespace ShuYu
         RectTransform[,] _cellRects;                     // 格子引用（目标高亮）
         readonly List<GameObject> _highlights = new List<GameObject>(); // 高亮覆盖层
         GameObject _pileViewer;   // 抽/弃牌堆查看弹窗
+        bool _skipDealAnim;       // 回合结算逐步播放时，跳过抽牌动画
 
         void Start() { Build(); }
 
@@ -336,7 +337,7 @@ namespace ShuYu
                 var view = go.AddComponent<CardView>();
                 view.Setup(card, OnCardClicked, selected);
                 view.SetEnchanted(gm.Turn.FireEnchanted);
-                view.PlayDeal(i * 0.05f);
+                if (!_skipDealAnim) view.PlayDeal(i * 0.05f);
                 _handCards.Add(view);
             }
 
@@ -403,7 +404,7 @@ namespace ShuYu
                 new Vector2(40, -200), new Vector2(440, 200));
         }
 
-        /// <summary>抽牌堆/弃牌堆查看弹窗：变暗遮罩 + 一张张牌从上往下铺开（像手牌）。</summary>
+        /// <summary>抽牌堆/弃牌堆查看：全屏变暗遮罩 + 卡牌网格居中铺满全屏（杀戮尖塔式）。</summary>
         void ShowPileViewer(List<CardData> pile, string title)
         {
             if (_pileViewer != null) Destroy(_pileViewer);
@@ -413,53 +414,75 @@ namespace ShuYu
             UIFactory.Stretch(root);
             _pileViewer = root.gameObject;
 
-            // 变暗遮罩（点击空白处关闭）
-            var mask = UIFactory.CreatePanel("Mask", root, new Color(0, 0, 0, 0.78f));
+            // 全屏变暗遮罩（点击空白处关闭）
+            var mask = UIFactory.CreatePanel("Mask", root, new Color(0, 0, 0, 0.85f));
             UIFactory.Stretch(mask.rectTransform);
             var maskBtn = mask.gameObject.AddComponent<Button>();
             maskBtn.targetGraphic = mask;
             maskBtn.onClick.AddListener(ClosePileViewer);
 
-            var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
-            UIFactory.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-360, -360), new Vector2(360, 360));
+            var titleText = UIFactory.CreateText("Title", root, title, 60, GameConfig.Accent);
+            UIFactory.Place(titleText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -120), new Vector2(0, -40));
 
-            var titleText = UIFactory.CreateText("Title", panel.transform, title, 56, GameConfig.Accent);
-            UIFactory.Place(titleText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -80), new Vector2(0, -20));
-
-            var close = UIFactory.CreateButton("Close", panel.transform, "关闭", 40, GameConfig.GridLine, GameConfig.SubText, ClosePileViewer);
-            UIFactory.Place(close, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-80, 20), new Vector2(80, 90));
+            var hint = UIFactory.CreateText("Hint", root, "点击空白处关闭", 30, GameConfig.SubText);
+            UIFactory.Place(hint.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-200, 30), new Vector2(200, 80));
 
             if (pile.Count == 0)
             {
-                var empty = UIFactory.CreateText("Empty", panel.transform, "（空）", 40, GameConfig.SubText);
-                UIFactory.Place(empty.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -40), new Vector2(0, 40));
+                var empty = UIFactory.CreateText("Empty", root, "（空）", 60, GameConfig.SubText);
+                UIFactory.Place(empty.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-200, -50), new Vector2(200, 50));
                 return;
             }
 
-            // 一张张迷你卡牌从上往下铺开
-            const float cardW = 320f, cardH = 60f, gap = 8f;
+            // 铺满全屏的卡牌网格（居中）
+            const float cardW = 200f, cardH = 260f, gap = 24f;
+            int cols = Mathf.Min(5, pile.Count);
+            int rows = Mathf.CeilToInt(pile.Count / (float)cols);
+            float totalW = cols * cardW + (cols - 1) * gap;
+            float totalH = rows * cardH + (rows - 1) * gap;
+            float startX = -totalW / 2f + cardW / 2f;
+            float startY = totalH / 2f - cardH / 2f - 40f;   // 稍下移，给标题留空间
+
             for (int i = 0; i < pile.Count; i++)
             {
-                var card = pile[i];
-                float top = -90 - i * (cardH + gap);
-
-                var cardRt = UIFactory.CreateRect("Card_" + i, panel.transform);
-                UIFactory.Place(cardRt, new Vector2(0.5f, 1), new Vector2(0.5f, 1),
-                    new Vector2(-cardW / 2f, top - cardH), new Vector2(cardW / 2f, top));
-
-                var img = cardRt.gameObject.AddComponent<Image>();
-                img.sprite = UIFactory.Rounded;
-                img.type = Image.Type.Sliced;
-                img.color = GameConfig.CardBase;
-                UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
-
-                var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 40, GameConfig.CardColor(card.op));
-                UIFactory.Stretch(label.rectTransform);
-
-                var cost = UIFactory.CreateText("Cost", cardRt, card.cost.ToString(), 26, GameConfig.Accent);
-                UIFactory.Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(8, -34), new Vector2(48, -10));
+                int r = i / cols;
+                int c = i % cols;
+                float x = startX + c * (cardW + gap);
+                float y = startY - r * (cardH + gap);
+                CreatePileCard(pile[i], x, y, cardW, cardH, root);
             }
+        }
+
+        /// <summary>在弹窗里铺一张卡（名字 + 大数字 + 左上角费用 + 圆角描边）。</summary>
+        void CreatePileCard(CardData card, float x, float y, float cardW, float cardH, RectTransform parent)
+        {
+            var rt = UIFactory.CreateRect("Card_" + card.DisplayText(), parent);
+            UIFactory.Place(rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(x - cardW / 2f, y - cardH / 2f), new Vector2(x + cardW / 2f, y + cardH / 2f));
+
+            var img = rt.gameObject.AddComponent<Image>();
+            img.sprite = UIFactory.Rounded;
+            img.type = Image.Type.Sliced;
+            img.color = GameConfig.CardBase;
+            UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
+
+            // 名字（顶部）
+            if (!string.IsNullOrEmpty(card.cardName))
+            {
+                var name = UIFactory.CreateText("Name", rt, card.cardName, 30, GameConfig.SubText);
+                name.alignment = TextAlignmentOptions.Center;
+                UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(10, -50), new Vector2(-10, -12));
+            }
+
+            // 大数字（中下部）
+            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 64, GameConfig.CardColor(card.op));
+            UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                new Vector2(10, -170), new Vector2(-10, -55));
+
+            // 费用（左上角）
+            var cost = UIFactory.CreateText("Cost", rt, card.cost.ToString(), 36, GameConfig.Accent);
+            UIFactory.Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(10, -46), new Vector2(60, -12));
         }
 
         void ClosePileViewer()
@@ -687,19 +710,29 @@ namespace ShuYu
                 StartCoroutine(FlyDamage(total, hasOrigin ? origin : _hpText.rectTransform.position));
         }
 
-        /// <summary>溢出大爆炸：中心爆闪 + 一圈白/金粒子飞散（核心金色、普通白热）。</summary>
+        /// <summary>溢出大爆炸：中心爆闪 + 冲击波扩散 + 一圈大小不一的粒子飞散（核心金色、普通白热）。</summary>
         IEnumerator OverflowExplosion(RectTransform cell, bool isCore)
         {
             Color sparkColor = isCore ? new Color(1f, 0.7f, 0f, 1f) : new Color(1f, 0.85f, 0.4f, 1f);
 
+            // 中心爆闪
             var flash = UIFactory.CreatePanel("Boom", cell, new Color(1f, 1f, 1f, 0.95f));
             flash.raycastTarget = false;
             var frt = flash.rectTransform;
             frt.anchorMin = frt.anchorMax = new Vector2(0.5f, 0.5f);
-            frt.sizeDelta = new Vector2(50f, 50f);
+            frt.sizeDelta = new Vector2(40f, 40f);
             frt.anchoredPosition = Vector2.zero;
 
-            const int n = 18;
+            // 冲击波（更大更淡的扩散圈）
+            var shock = UIFactory.CreatePanel("Shock", cell, new Color(1f, 0.8f, 0.3f, 0.55f));
+            shock.raycastTarget = false;
+            var srt = shock.rectTransform;
+            srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
+            srt.sizeDelta = new Vector2(20f, 20f);
+            srt.anchoredPosition = Vector2.zero;
+
+            // 粒子（大小不一）
+            const int n = 24;
             var parts = new List<Image>();
             var angles = new float[n];
             for (int i = 0; i < n; i++)
@@ -708,29 +741,33 @@ namespace ShuYu
                 p.raycastTarget = false;
                 var rt = p.rectTransform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(7f, 7f);
+                float s = 3f + Random.value * 6f;   // 3~9px
+                rt.sizeDelta = new Vector2(s, s);
                 rt.anchoredPosition = Vector2.zero;
                 parts.Add(p);
                 angles[i] = Random.value * Mathf.PI * 2f;
             }
 
             float t = 0f;
-            const float dur = 0.45f;
+            const float dur = 0.5f;
             while (t < dur)
             {
                 t += Time.deltaTime;
                 float k = t / dur;
-                frt.sizeDelta = new Vector2(50f + 100f * k, 50f + 100f * k);
+                frt.sizeDelta = new Vector2(40f + 110f * k, 40f + 110f * k);
                 Color fc = flash.color; fc.a = 0.95f * (1f - k); flash.color = fc;
+                srt.sizeDelta = new Vector2(20f + 150f * k, 20f + 150f * k);
+                Color sc = shock.color; sc.a = 0.55f * (1f - k); shock.color = sc;
                 for (int i = 0; i < n; i++)
                 {
-                    float dist = 18f + 70f * k;
+                    float dist = 12f + 85f * k;
                     parts[i].rectTransform.anchoredPosition = new Vector2(Mathf.Cos(angles[i]) * dist, Mathf.Sin(angles[i]) * dist);
                     Color c = parts[i].color; c.a = 1f - k; parts[i].color = c;
                 }
                 yield return null;
             }
             Destroy(flash.gameObject);
+            Destroy(shock.gameObject);
             foreach (var p in parts) Destroy(p.gameObject);
         }
 
@@ -845,10 +882,38 @@ namespace ShuYu
         {
             var gm = GameManager.Instance;
             if (gm.IsGameOver) return;
-            gm.EndTurn();
             _selectedCard = null;
+            StartCoroutine(AnimateEndTurn());
+        }
+
+        /// <summary>逐步播放回合结算：攻击 → 灼烧 → 增殖 → 溢出 → 收尾。</summary>
+        IEnumerator AnimateEndTurn()
+        {
+            var turn = GameManager.Instance.Turn;
+            if (turn.phase != TurnPhase.PlayerTurn) yield break;
+
+            _skipDealAnim = true;   // 中间步骤不重抽手牌动画
+
+            turn.ResolveAttack();
             Build();
-            SpawnOverflowFeedback(gm.Turn.LastOverflow);   // 溢出爆炸 + 伤害飞向血条
+            yield return new WaitForSeconds(0.2f);
+
+            turn.ResolveBurn();
+            Build();
+            yield return new WaitForSeconds(0.25f);
+
+            turn.ResolveGrowth();
+            Build();
+            yield return new WaitForSeconds(0.4f);
+
+            turn.ResolveOverflow();
+            Build();
+            SpawnOverflowFeedback(turn.LastOverflow);
+            yield return new WaitForSeconds(0.55f);
+
+            _skipDealAnim = false;  // 收尾抽牌恢复动画
+            turn.FinishTurn();
+            Build();
         }
     }
 }

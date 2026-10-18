@@ -62,8 +62,18 @@ namespace ShuYu
             img.color = GameConfig.CardBase;
             UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
 
-            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 72, GameConfig.CardColor(card.op));
-            UIFactory.Stretch(label.rectTransform);
+            // 名字（顶部）
+            if (!string.IsNullOrEmpty(card.cardName))
+            {
+                var name = UIFactory.CreateText("Name", rt, card.cardName, 26, GameConfig.SubText);
+                name.alignment = TextAlignmentOptions.Center;
+                UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(10, -48), new Vector2(-10, -12));
+            }
+
+            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 64, GameConfig.CardColor(card.op));
+            UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                new Vector2(10, -160), new Vector2(-10, -52));
 
             var price = UIFactory.CreateText("Price", rt, cost + "血", 36, GameConfig.Accent);
             UIFactory.Place(price.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 10), new Vector2(0, 62));

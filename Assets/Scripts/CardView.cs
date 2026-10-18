@@ -16,6 +16,7 @@ namespace ShuYu
         Image _bg;
         TMP_Text _label;
         TMP_Text _desc;
+        TMP_Text _name;
         CanvasGroup _group;
         Outline _outline;   // 卡牌描边（附魔特效用）
         bool _enchanted;    // 是否处于附魔特效（下一张攻击带灼烧）
@@ -61,7 +62,18 @@ namespace ShuYu
             _label.alignment = TextAlignmentOptions.Center;
             UIFactory.Place(_label.rectTransform,
                 new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(10, -100), new Vector2(-10, -10));
+                new Vector2(10, -150), new Vector2(-10, -55));
+
+            // 卡牌名字（顶部小字）
+            if (!string.IsNullOrEmpty(card.cardName))
+            {
+                _name = UIFactory.CreateText("Name", Rect, card.cardName, 26,
+                    selected ? GameConfig.Background : GameConfig.SubText);
+                _name.alignment = TextAlignmentOptions.Center;
+                UIFactory.Place(_name.rectTransform,
+                    new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(10, -55), new Vector2(-10, -15));
+            }
 
             // 描述（职业专属卡有，基础卡没有）
             if (!string.IsNullOrEmpty(card.description))
@@ -89,6 +101,7 @@ namespace ShuYu
             _bg.color = selected ? GameConfig.Accent : GameConfig.CardBase;
             _label.color = selected ? GameConfig.Background : GameConfig.CardColor(Card.op);
             if (_desc != null) _desc.color = selected ? GameConfig.Background : GameConfig.SubText;
+            if (_name != null) _name.color = selected ? GameConfig.Background : GameConfig.SubText;
             if (changed && selected) StartCoroutine(Pop());
         }
 
