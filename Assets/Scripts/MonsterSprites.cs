@@ -28,10 +28,14 @@ namespace ShuYu
                 hit = LoadFrames("Sprites/" + key + "_hit"),
             };
 
-            // 帧间隔按 GIF 原始时长近似：flower ~100/80/90ms，crab ~140/120/90ms
+            // 帧间隔按 GIF 原始时长近似：flower ~100/80/90ms，crab ~140/120/90ms，snake ~110/100/90ms
             if (key == "crab")
             {
                 a.idleInterval = 0.14f; a.attackInterval = 0.12f; a.hitInterval = 0.09f;
+            }
+            else if (key == "snake")
+            {
+                a.idleInterval = 0.11f; a.attackInterval = 0.10f; a.hitInterval = 0.09f;
             }
             else
             {

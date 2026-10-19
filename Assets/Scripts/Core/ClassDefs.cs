@@ -14,8 +14,9 @@ namespace ShuYu
         public PassiveType passive;
         public List<CardData> startingDeck;
         public ClassTag tag;      // 职业成员标记：卡牌上标了这个 tag 的，就属于本职业专属牌池
+        public int initialHealth; // 初始生命值
 
-        public ClassData(string id, string displayName, string description, PassiveType passive, List<CardData> startingDeck, ClassTag tag = ClassTag.None)
+        public ClassData(string id, string displayName, string description, PassiveType passive, List<CardData> startingDeck, ClassTag tag = ClassTag.None, int initialHealth = GameConfig.InitialHealth)
         {
             this.id = id;
             this.displayName = displayName;
@@ -23,6 +24,7 @@ namespace ShuYu
             this.passive = passive;
             this.startingDeck = startingDeck;
             this.tag = tag;
+            this.initialHealth = initialHealth;
         }
     }
 
@@ -30,13 +32,13 @@ namespace ShuYu
     public static class ClassCatalog
     {
         public static ClassData Warrior() => new ClassData(
-            "warrior", "战 士", "铁腕 · 减法牌数值 +1", PassiveType.IronGrip, CardLibrary.WarriorDeck(), ClassTag.Warrior);
+            "warrior", "战 士", "铁腕 · 减法牌数值 +1", PassiveType.IronGrip, CardLibrary.WarriorDeck(), ClassTag.Warrior, 40);
 
         public static ClassData Mage() => new ClassData(
-            "mage", "法 师", "解析 · 除法切干净不留残余", PassiveType.Analyze, CardLibrary.MageDeck(), ClassTag.Mage);
+            "mage", "法 师", "解析 · 除法切干净不留残余", PassiveType.Analyze, CardLibrary.MageDeck(), ClassTag.Mage, 25);
 
         public static ClassData Reaper() => new ClassData(
-            "reaper", "收割者", "收割 · 怪物获得非自然成长时，所有格子 -1", PassiveType.Harvest, CardLibrary.ReaperDeck(), ClassTag.Reaper);
+            "reaper", "收割者", "收割 · 怪物获得非自然成长时，所有格子 -1", PassiveType.Harvest, CardLibrary.ReaperDeck(), ClassTag.Reaper, 30);
 
         public static ClassData[] All() => new ClassData[] { Warrior(), Mage(), Reaper() };
     }

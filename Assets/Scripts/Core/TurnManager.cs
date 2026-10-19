@@ -114,7 +114,7 @@ namespace ShuYu
             if (card.heal > 0)
             {
                 player.health += card.heal;
-                if (player.health > GameConfig.InitialHealth) player.health = GameConfig.InitialHealth;
+                if (player.health > player.maxHealth) player.health = player.maxHealth;
                 deck.PlayCard(card);
                 energy -= card.cost;
                 return true;

@@ -20,7 +20,7 @@ namespace ShuYu
             Instance = this;
             _src = gameObject.AddComponent<AudioSource>();
             _src.playOnAwake = false;
-            _src.volume = 0.7f;
+            ApplyVolume();
 
             // 确保有 AudioListener（场景相机没挂，否则听不到声音）
             if (FindObjectOfType<AudioListener>() == null)
@@ -35,11 +35,10 @@ namespace ShuYu
                 _src.PlayOneShot(clip);
         }
 
-        /// <summary>音量（0~1）。</summary>
-        public float Volume
+        /// <summary>按 AudioSettings 刷新音量（主音量 × 音效音量）。</summary>
+        public void ApplyVolume()
         {
-            get { return _src != null ? _src.volume : 0.7f; }
-            set { if (_src != null) _src.volume = Mathf.Clamp01(value); }
+            if (_src != null) _src.volume = AudioSettings.Master * AudioSettings.Sfx;
         }
 
         void Generate()

@@ -30,7 +30,9 @@ namespace ShuYu
         string _monsterName;    // 当前怪物名字（战斗屏显示）
         GameObject _pauseMenu;  // 暂停菜单（ESC）
         GameObject _settingsMenu;   // 设置菜单
-        TMP_Text _volLabel;         // 音量标签
+        TMP_Text _masterLabel;      // 主音量标签
+        TMP_Text _musicLabel;       // 音乐音量标签
+        TMP_Text _sfxLabel;         // 音效音量标签
         TMP_Text _fsLabel;          // 全屏标签
 
         // 场景化引用（SceneBuilder 生成场景时用 BindScene 注入；为空则回退到纯运行时生成）
@@ -57,6 +59,7 @@ namespace ShuYu
         public bool IsShapeBoard { get; private set; }   // 当前战斗是否是精英/BOSS 形状棋盘
         public GameObject ClassSelectRoot => _classSelectRoot;
         public GameObject RouteRoot => _routeRoot;
+        public RectTransform WorldAxis { get; private set; }   // 坐标轴（路线界面缩放时同步）
 
         void Awake()
         {
@@ -68,6 +71,8 @@ namespace ShuYu
         void Start()
         {
             if (_worldRoot != null) _world = _worldRoot;
+            if (_world != null && WorldAxis == null)
+                WorldAxis = _world.transform.Find("WorldAxis")?.GetComponent<RectTransform>();
 
             // 确保 Canvas 走相机模式（CRT 后处理需要），旧场景的 Overlay Canvas 也会在此升级
             UIFactory.EnsureCanvas();
@@ -92,14 +97,28 @@ namespace ShuYu
             _titleFx = gameObject.AddComponent<TitleMathFX>();
             _titleFx.SetVisible(true);
 
-            // 音效
+            // 音效 + 背景音乐
             if (GetComponent<SfxPlayer>() == null) gameObject.AddComponent<SfxPlayer>();
+            if (GetComponent<MusicPlayer>() == null) gameObject.AddComponent<MusicPlayer>();
         }
 
         void Update()
         {
             if (Input.GetKeyDown(KeyCode.Escape))
                 TogglePause();
+
+            // 战斗时按 M 或 Tab 查看地图
+            if (Input.GetKeyDown(KeyCode.M) || Input.GetKeyDown(KeyCode.Tab))
+                ToggleMapOverlay();
+        }
+
+        /// <summary>战斗时切换地图查看（只读）。</summary>
+        void ToggleMapOverlay()
+        {
+            if (GetComponent<BattleScreen>() == null) return;   // 只在战斗中可用
+            var overlay = GetComponent<MapOverlay>();
+            if (overlay != null) Destroy(overlay);
+            else gameObject.AddComponent<MapOverlay>();
         }
 
         /// <summary>
@@ -280,47 +299,63 @@ namespace ShuYu
 
             var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
             UIFactory.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-320, -280), new Vector2(320, 280));
+                new Vector2(-340, -400), new Vector2(340, 400));
 
             var title = UIFactory.CreateText("Title", panel.transform, "设 置", 60, GameConfig.Accent);
-            UIFactory.Place(title.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -100), new Vector2(0, -20));
+            UIFactory.Place(title.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -90), new Vector2(0, -20));
 
-            _volLabel = UIFactory.CreateText("VolLabel", panel.transform, VolText(), 40, GameConfig.SubText);
-            UIFactory.Place(_volLabel.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -180), new Vector2(0, -120));
+            // 三档音量：主 / 音乐 / 音效
+            BuildVolumeRow(panel.transform, "Master", "主音量", -120, ref _masterLabel, () => AudioSettings.Master, v => AudioSettings.Master = v);
+            BuildVolumeRow(panel.transform, "Music", "音乐音量", -210, ref _musicLabel, () => AudioSettings.Music, v => AudioSettings.Music = v);
+            BuildVolumeRow(panel.transform, "Sfx", "音效音量", -300, ref _sfxLabel, () => AudioSettings.Sfx, v => AudioSettings.Sfx = v);
 
-            var volDown = UIFactory.CreateButton("VolDown", panel.transform, "音量 -", 32, GameConfig.GridLine, GameConfig.SubText, VolumeDown);
-            UIFactory.Place(volDown, new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -250), new Vector2(160, -180));
-
-            var volUp = UIFactory.CreateButton("VolUp", panel.transform, "音量 +", 32, GameConfig.GridLine, GameConfig.SubText, VolumeUp);
-            UIFactory.Place(volUp, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-160, -250), new Vector2(-20, -180));
-
-            _fsLabel = UIFactory.CreateText("FsLabel", panel.transform, FsText(), 40, GameConfig.SubText);
-            UIFactory.Place(_fsLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-200, -60), new Vector2(200, 0));
+            _fsLabel = UIFactory.CreateText("FsLabel", panel.transform, FsText(), 36, GameConfig.SubText);
+            UIFactory.Place(_fsLabel.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-200, 150), new Vector2(200, 200));
 
             var fsBtn = UIFactory.CreateButton("Fullscreen", panel.transform, "切换全屏", 32, GameConfig.GridLine, GameConfig.SubText, ToggleFullscreen);
-            UIFactory.Place(fsBtn, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-120, -120), new Vector2(120, -70));
+            UIFactory.Place(fsBtn, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-120, 90), new Vector2(120, 140));
 
             var back = UIFactory.CreateButton("Back", panel.transform, "返 回", 40, GameConfig.Accent, GameConfig.Background, HideSettings);
-            UIFactory.Place(back, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-120, 30), new Vector2(120, 100));
+            UIFactory.Place(back, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-120, 20), new Vector2(120, 80));
+
+            RefreshVolumeLabels();
         }
 
-        string VolText() { return "音量 " + (int)(SfxPlayer.Instance != null ? SfxPlayer.Instance.Volume * 10f : 7f); }
+        /// <summary>建一行音量设置：标签 + 「-」「+」按钮。topY 为行顶相对面板顶部的偏移（负值往下）。</summary>
+        void BuildVolumeRow(Transform parent, string key, string name, float topY, ref TMP_Text labelRef,
+            System.Func<float> get, System.Action<float> set)
+        {
+            labelRef = UIFactory.CreateText(key + "Label", parent, "", 36, GameConfig.SubText);
+            UIFactory.Place(labelRef.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, topY - 70), new Vector2(0, topY));
+
+            var down = UIFactory.CreateButton(key + "Down", parent, "-", 34, GameConfig.GridLine, GameConfig.SubText,
+                () => { set(get() - 0.1f); RefreshVolumeLabels(); });
+            UIFactory.Place(down, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, topY - 70), new Vector2(140, topY));
+
+            var up = UIFactory.CreateButton(key + "Up", parent, "+", 34, GameConfig.GridLine, GameConfig.SubText,
+                () => { set(get() + 0.1f); RefreshVolumeLabels(); });
+            UIFactory.Place(up, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-140, topY - 70), new Vector2(-40, topY));
+        }
+
+        void RefreshVolumeLabels()
+        {
+            if (_masterLabel != null) _masterLabel.text = "主音量 " + VolStep(AudioSettings.Master);
+            if (_musicLabel != null) _musicLabel.text = "音乐音量 " + VolStep(AudioSettings.Music);
+            if (_sfxLabel != null) _sfxLabel.text = "音效音量 " + VolStep(AudioSettings.Sfx);
+        }
+
+        static string VolStep(float v) { return Mathf.RoundToInt(v * 10f).ToString(); }
+
         string FsText() { return "全屏：" + (Screen.fullScreen ? "开" : "关"); }
 
-        void VolumeDown() { AdjustVolume(-1); if (_volLabel != null) _volLabel.text = VolText(); }
-        void VolumeUp() { AdjustVolume(1); if (_volLabel != null) _volLabel.text = VolText(); }
         void ToggleFullscreen() { Screen.fullScreen = !Screen.fullScreen; if (_fsLabel != null) _fsLabel.text = FsText(); }
-
-        void AdjustVolume(int dir)
-        {
-            if (SfxPlayer.Instance == null) return;
-            SfxPlayer.Instance.Volume = Mathf.Clamp01(SfxPlayer.Instance.Volume + dir * 0.1f);
-        }
 
         void HideSettings()
         {
             if (_settingsMenu != null) { Destroy(_settingsMenu); _settingsMenu = null; }
-            _volLabel = null;
+            _masterLabel = null;
+            _musicLabel = null;
+            _sfxLabel = null;
             _fsLabel = null;
         }
 
@@ -342,6 +377,13 @@ namespace ShuYu
             axis.sprite = Sprite.Create(axisTex, new Rect(0, 0, 1920, 1080), new Vector2(0.5f, 0.5f), 100f);
             axis.type = Image.Type.Simple;
             UIFactory.Stretch(axis.rectTransform);
+            WorldAxis = axis.rectTransform;
+        }
+
+        /// <summary>显示/隐藏背景坐标轴（选路界面用网格地图，不需要坐标轴背景）。</summary>
+        public void SetWorldAxisVisible(bool visible)
+        {
+            if (WorldAxis != null) WorldAxis.gameObject.SetActive(visible);
         }
 
         /// <summary>创建全屏黑色过渡遮罩（惰性，首次切屏时建）。</summary>
@@ -397,8 +439,10 @@ namespace ShuYu
 
         public void ShowTitle()
         {
+            MusicPlayer.Instance?.Play(MusicTrack.Title);
             if (_titleFx != null) _titleFx.SetVisible(true);
             EnsureWorld();
+            SetWorldAxisVisible(true);
             RefreshTitle();   // 存档状态可能已变（新建 / 清除），回到标题时重算按钮
             Switch(() => {
                 ClearScreen();
@@ -409,6 +453,7 @@ namespace ShuYu
 
         public void ShowClassSelect()
         {
+            MusicPlayer.Instance?.Play(MusicTrack.Map);   // 从标题开始游戏：无缝切到地图音乐
             if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
             Switch(() => { ClearScreen(); ShowFrame(_classSelectRoot); gameObject.AddComponent<ClassSelectScreen>(); });
@@ -418,7 +463,7 @@ namespace ShuYu
         public void StartRun(ClassData cls)
         {
             _cls = cls;
-            _player = new PlayerState(GameConfig.InitialHealth);
+            _player = new PlayerState(cls.initialHealth);
             _deck = new Deck(cls.startingDeck);
             _route = RouteMap.Generate();
             _battlesFought = 0;   // 新的一局：核心成长从「前两场 +3」重新算
@@ -428,8 +473,10 @@ namespace ShuYu
 
         public void ShowRoute()
         {
+            MusicPlayer.Instance?.Play(MusicTrack.Map);
             if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
+            SetWorldAxisVisible(false);
             SaveGame();   // 自动存档（路线检查点）
             Switch(() => { ClearScreen(); ShowFrame(_routeRoot); gameObject.AddComponent<RouteScreen>(); });
         }
@@ -458,6 +505,7 @@ namespace ShuYu
         /// <summary>BOSS 通关：进结局屏。</summary>
         public void ShowEnding()
         {
+            MusicPlayer.Instance?.Play(MusicTrack.Map);
             SaveSystem.Clear();  // 通关，清除存档
             EnsureWorld();
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<EndingScreen>(); });
@@ -469,6 +517,20 @@ namespace ShuYu
             var node = _route.nodes[nodeIndex];
             node.reached = true;
             _route.currentIndex = nodeIndex;
+            _route.movesTaken++;   // 移动一次（缩圈依据）
+
+            // 缩圈：第 3 次移动起，安全圈向中心收缩，停在圈外掉血
+            if (!_route.IsSafe(nodeIndex))
+            {
+                _player.health -= RouteMap.ShrinkDamage;
+                if (_player.health <= 0)
+                {
+                    _player.health = 0;
+                    SaveSystem.Clear();   // 圈外致死：清档回标题
+                    ShowTitle();
+                    return;
+                }
+            }
 
             if (node.type == NodeType.Camp)
             {
@@ -508,7 +570,8 @@ namespace ShuYu
         void StartBattle(MapNode node, NodeType battleType)
         {
             IsShapeBoard = (battleType == NodeType.Elite || battleType == NodeType.Boss);
-            var board = SpawnBoard(battleType, node.row);
+            MusicPlayer.Instance?.Play(battleType == NodeType.Boss ? MusicTrack.Boss : MusicTrack.Combat);
+            var board = SpawnBoard(battleType, _route.movesTaken);
             _deck.Reset();   // 每场战斗前重置卡组
             _battlesFought++;
             _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn, CoreGrowthFor(battleType));

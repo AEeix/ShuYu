@@ -483,6 +483,7 @@ namespace ShuYu
                 {
                     case "巨蟹": return "crab";
                     case "尖叫花": return "flower";
+                    case "蛇": return "snake";
                 }
             }
             return null;
