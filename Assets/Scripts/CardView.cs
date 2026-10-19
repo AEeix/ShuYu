@@ -21,6 +21,7 @@ namespace ShuYu
         Outline _outline;   // 卡牌描边（附魔特效用）
         bool _enchanted;    // 是否处于附魔特效（下一张攻击带灼烧）
         Vector2 _shakeOffset; // 出牌失败（能量不足）抖动偏移
+        Vector2 _dealOffset;  // 抽牌飞入的位移（从下方飞入手牌，播完归零）
         Action<CardData> _onClick;
         Camera _cam;
 
@@ -152,16 +153,21 @@ namespace ShuYu
         IEnumerator DealAnim(float delay)
         {
             Rect.localScale = Vector3.zero;
+            _dealOffset = new Vector2(0f, -170f);   // 起始在下方（抽牌堆方向）
             if (delay > 0f) yield return new WaitForSeconds(delay);
             float t = 0f;
-            const float dur = 0.3f;
+            const float dur = 0.32f;
             while (t < dur)
             {
                 t += Time.deltaTime;
-                Rect.localScale = Vector3.one * Overshoot(t / dur);
+                float k = t / dur;
+                float ease = 1f - (1f - k) * (1f - k);   // easeOutQuad：先快后慢飞入
+                Rect.localScale = Vector3.one * Overshoot(k);
+                _dealOffset = new Vector2(0f, -170f * (1f - ease));
                 yield return null;
             }
             Rect.localScale = Vector3.one;
+            _dealOffset = Vector2.zero;
         }
 
         IEnumerator Pop()
@@ -271,7 +277,7 @@ namespace ShuYu
             float targetTilt = _hovered ? _tiltDeg : 0f;
             _lift = Mathf.Lerp(_lift, targetLift, Time.deltaTime * Smooth);
             _curTilt = Mathf.Lerp(_curTilt, targetTilt, Time.deltaTime * Smooth);
-            Rect.anchoredPosition = _basePos + new Vector2(0f, _lift) + _shakeOffset;
+            Rect.anchoredPosition = _basePos + new Vector2(0f, _lift) + _shakeOffset + _dealOffset;
             Rect.localRotation = Quaternion.Euler(0f, 0f, _curTilt);
 
             // 附魔特效：火焰边框脉冲（深橙红 ↔ 亮橙黄）

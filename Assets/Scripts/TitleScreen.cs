@@ -24,37 +24,38 @@ namespace ShuYu
         {
             const float width = 360f;
             bool hasSave = SaveSystem.HasSave;
+            float shift = hasSave ? 0f : 80f;   // 无存档：开始新游戏隐藏，下方按钮上移 80 补位
 
             var title = UIFactory.CreateText("Title", _root, "数域", 144, GameConfig.Accent);
             title.alignment = TextAlignmentOptions.Left;
-            PlaceAbs(title.rectTransform, OriginX + 60, 480, OriginX + width, 680);
+            PlaceAbs(title.rectTransform, OriginX + 60, 640, OriginX + width, 820);
 
             // 主按钮：无存档「开始游戏」，有存档「继续游戏」
             var startBtn = UIFactory.CreateButton("StartButton", _root, hasSave ? "继续游戏" : "开始游戏", 48,
                 GameConfig.Accent, GameConfig.Background,
                 () => { if (hasSave) GameManager.Instance.ContinueGame(); else GameManager.Instance.ShowClassSelect(); });
-            PlaceAbs(startBtn, OriginX + 60, 380, OriginX + width, 470);
+            PlaceAbs(startBtn, OriginX + 60, 540, OriginX + width, 630);
 
             // 开始新游戏（有存档才显示）
             var newGameBtn = UIFactory.CreateButton("NewGameButton", _root, "开始新游戏", 40,
                 GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowClassSelect());
-            PlaceAbs(newGameBtn, OriginX + 60, 300, OriginX + width, 370);
+            PlaceAbs(newGameBtn, OriginX + 60, 460, OriginX + width, 530);
             if (!hasSave) newGameBtn.gameObject.SetActive(false);
 
             // 设置
             var settingsBtn = UIFactory.CreateButton("SettingsButton", _root, "设置", 36,
                 GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.ShowSettings());
-            PlaceAbs(settingsBtn, OriginX + 60, 220, OriginX + width, 290);
+            PlaceAbs(settingsBtn, OriginX + 60, 380 + shift, OriginX + width, 450 + shift);
+
+            // 卡牌图鉴（设置下面）
+            var codexBtn = UIFactory.CreateButton("CodexButton", _root, "卡牌图鉴", 38,
+                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowCodex());
+            PlaceAbs(codexBtn, OriginX + 60, 300 + shift, OriginX + width, 370 + shift);
 
             // 退出游戏
             var quitBtn = UIFactory.CreateButton("QuitButton", _root, "退出游戏", 36,
                 GameConfig.CardBase, GameConfig.SubText, QuitGame);
-            PlaceAbs(quitBtn, OriginX + 60, 140, OriginX + width, 210);
-
-            // 卡牌图鉴（贴右侧，与 GameManager.EnsureCodexButton 位置保持一致）
-            var codexBtn = UIFactory.CreateButton("CodexButton", _root, "卡牌图鉴", 38,
-                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowCodex());
-            PlaceAbs(codexBtn, 1480, 470, 1820, 550);
+            PlaceAbs(quitBtn, OriginX + 60, 220 + shift, OriginX + width, 290 + shift);
         }
 
         void QuitGame()

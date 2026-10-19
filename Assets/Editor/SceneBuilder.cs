@@ -83,7 +83,7 @@ namespace ShuYu
             // 静态标题
             var titleRoot = UIFactory.CreateRect("TitleRoot", canvas.transform);
             UIFactory.Stretch(titleRoot);
-            BuildTitle(titleRoot, out Button startButton, out Button newGameButton, out Button settingsButton, out Button quitButton);
+            BuildTitle(titleRoot, out Button startButton, out Button newGameButton, out Button settingsButton, out Button codexButton, out Button quitButton);
 
             // 选职 / 路线静态框架（默认隐藏，运行时激活；动态内容仍在运行时填）
             var classSelectRoot = ClassSelectScreen.BuildStaticFrame(canvas.transform);
@@ -94,7 +94,7 @@ namespace ShuYu
             // 4. GameManager + 绑定引用
             var gmGo = new GameObject("GameManager");
             var gm = gmGo.AddComponent<GameManager>();
-            gm.BindScene(world.gameObject, titleRoot.gameObject, startButton, newGameButton, settingsButton, quitButton,
+            gm.BindScene(world.gameObject, titleRoot.gameObject, startButton, newGameButton, settingsButton, codexButton, quitButton,
                 classSelectRoot.gameObject, routeRoot.gameObject);
             gmGo.AddComponent<CRTPostFX>(); // CRT 后处理，参数在 Inspector 可调
 
@@ -106,31 +106,35 @@ namespace ShuYu
             Debug.Log("[SceneBuilder] 已生成 " + ScenePath + "，并加入 Build Settings");
         }
 
-        static void BuildTitle(Transform parent, out Button startButton, out Button newGameButton, out Button settingsButton, out Button quitButton)
+        static void BuildTitle(Transform parent, out Button startButton, out Button newGameButton, out Button settingsButton, out Button codexButton, out Button quitButton)
         {
             const float OriginX = 150f;
             const float width = 360f;
 
             var title = UIFactory.CreateText("Title", parent, "数域", 144, GameConfig.Accent);
             title.alignment = TextAlignmentOptions.Left;
-            PlaceAbs(title.rectTransform, OriginX + 60, 480, OriginX + width, 680);
+            PlaceAbs(title.rectTransform, OriginX + 60, 640, OriginX + width, 820);
 
             // 主按钮：运行时按存档状态在「开始游戏 / 继续游戏」间切换
             var start = UIFactory.CreateButton("StartButton", parent, "开始游戏", 48, GameConfig.Accent, GameConfig.Background, null);
-            PlaceAbs(start, OriginX + 60, 380, OriginX + width, 470);
+            PlaceAbs(start, OriginX + 60, 540, OriginX + width, 630);
 
             var newGame = UIFactory.CreateButton("NewGameButton", parent, "开始新游戏", 40, GameConfig.CardBase, GameConfig.Accent, null);
-            PlaceAbs(newGame, OriginX + 60, 300, OriginX + width, 370);
+            PlaceAbs(newGame, OriginX + 60, 460, OriginX + width, 530);
 
             var settings = UIFactory.CreateButton("SettingsButton", parent, "设置", 36, GameConfig.CardBase, GameConfig.SubText, null);
-            PlaceAbs(settings, OriginX + 60, 220, OriginX + width, 290);
+            PlaceAbs(settings, OriginX + 60, 380, OriginX + width, 450);
+
+            var codex = UIFactory.CreateButton("CodexButton", parent, "卡牌图鉴", 38, GameConfig.CardBase, GameConfig.Accent, null);
+            PlaceAbs(codex, OriginX + 60, 300, OriginX + width, 370);
 
             var quit = UIFactory.CreateButton("QuitButton", parent, "退出游戏", 36, GameConfig.CardBase, GameConfig.SubText, null);
-            PlaceAbs(quit, OriginX + 60, 140, OriginX + width, 210);
+            PlaceAbs(quit, OriginX + 60, 220, OriginX + width, 290);
 
             startButton = start.GetComponent<Button>();
             newGameButton = newGame.GetComponent<Button>();
             settingsButton = settings.GetComponent<Button>();
+            codexButton = codex.GetComponent<Button>();
             quitButton = quit.GetComponent<Button>();
         }
 

@@ -18,6 +18,7 @@ namespace ShuYu
         readonly List<GameObject> _highlights = new List<GameObject>(); // 高亮覆盖层
         GameObject _pileViewer;   // 抽/弃牌堆查看弹窗
         bool _skipDealAnim;       // 回合结算逐步播放时，跳过抽牌动画
+        SpriteAnimator _monsterAnim;   // 怪物立绘动画（crab/flower；slime 静态为 null）
 
         void Start() { Build(); }
 
@@ -45,7 +46,7 @@ namespace ShuYu
             BuildMonsterName(_root);
             BuildHand(_root);
             BuildClassInfo(_root);
-            BuildSlimeView(_root);
+            BuildMonsterView(_root);
             BuildOverlay(_root);
         }
 
@@ -439,24 +440,52 @@ namespace ShuYu
                 new Vector2(60, -300), new Vector2(560, -262));
         }
 
-        void BuildSlimeView(Transform parent)
+        /// <summary>怪物立绘（左侧）：史莱姆静态图；尖叫花/巨蟹逐帧动画；龙/蛇/BOSS 无立绘（纯形状棋盘）。整体上移。</summary>
+        void BuildMonsterView(Transform parent)
         {
-            // 普通小怪战：左侧放史莱姆立绘当「怪物视图」（数字瘤块仍在下方棋盘上）；
-            // 精英/BOSS 用形状棋盘自带的怪物轮廓，不放立绘
-            var gm = GameManager.Instance;
-            bool isMonster = gm.IsShapeBoard;
-            if (isMonster) return;
+            _monsterAnim = null;
+            string key = MonsterKey();
+            if (key == null) return;
 
-            var slime = UIFactory.Slime;
-            if (slime == null) return;
-
-            var img = UIFactory.CreatePanel("SlimeView", parent, Color.white);
-            img.sprite = slime;
+            var img = UIFactory.CreatePanel("MonsterView", parent, Color.white);
             img.type = Image.Type.Simple;
             img.preserveAspect = true;
+            // 立绘：左侧，上移（原垂直居中 y=-200~200，现 y=0~400，中心 +200）
             UIFactory.Place(img.rectTransform,
                 new Vector2(0, 0.5f), new Vector2(0, 0.5f),
-                new Vector2(40, -200), new Vector2(440, 200));
+                new Vector2(40, 0), new Vector2(440, 400));
+
+            if (key == "slime")
+            {
+                var slime = UIFactory.Slime;
+                if (slime == null) { Destroy(img.gameObject); return; }
+                img.sprite = slime;
+                return;
+            }
+
+            // crab / flower：三态逐帧动画
+            var anim = MonsterSprites.Get(key);
+            if (!anim.Valid) { Destroy(img.gameObject); return; }
+            var sa = img.gameObject.AddComponent<SpriteAnimator>();
+            sa.Setup(img, anim.idle, anim.attack, anim.hit,
+                anim.idleInterval, anim.attackInterval, anim.hitInterval);
+            _monsterAnim = sa;
+        }
+
+        /// <summary>当前怪物的立绘 key：slime / crab / flower；无立绘（龙/蛇/BOSS）返回 null。</summary>
+        string MonsterKey()
+        {
+            var gm = GameManager.Instance;
+            if (!gm.IsShapeBoard) return "slime";
+            if (gm.CurrentNodeType == NodeType.Elite)
+            {
+                switch (MonsterShapes.LastEliteName)
+                {
+                    case "巨蟹": return "crab";
+                    case "尖叫花": return "flower";
+                }
+            }
+            return null;
         }
 
         /// <summary>抽牌堆/弃牌堆查看：全屏变暗遮罩 + 卡牌网格居中铺满全屏（杀戮尖塔式）。</summary>
@@ -676,6 +705,85 @@ namespace ShuYu
         {
             foreach (var h in _highlights) if (h != null) Destroy(h);
             _highlights.Clear();
+        }
+
+        /// <summary>快照当前棋盘：每格 → 数字值（只记有数字的格）。</summary>
+        Dictionary<Vector2Int, int> SnapshotBoard()
+        {
+            var d = new Dictionary<Vector2Int, int>();
+            foreach (var n in GameManager.Instance.Board.numbers)
+                d[new Vector2Int(n.row, n.col)] = n.value;
+            return d;
+        }
+
+        /// <summary>对比快照与当前棋盘，返回数值有变化的格子及其增减量。</summary>
+        Dictionary<Vector2Int, int> ComputeDeltas(Dictionary<Vector2Int, int> before)
+        {
+            var d = new Dictionary<Vector2Int, int>();
+            foreach (var n in GameManager.Instance.Board.numbers)
+            {
+                var key = new Vector2Int(n.row, n.col);
+                int old = before.TryGetValue(key, out var v) ? v : 0;
+                int delta = n.value - old;
+                if (delta != 0) d[key] = delta;
+            }
+            return d;
+        }
+
+        /// <summary>给数值变化的格子加「浮动 +N/-N 文字 + 数字缩放 pop」（方案 A 确定感）。</summary>
+        void SpawnValueDeltaFeedback(Dictionary<Vector2Int, int> deltas)
+        {
+            foreach (var kv in deltas)
+            {
+                if (_cellRects == null || kv.Key.x < 0 || kv.Key.x >= _cellRects.GetLength(0)
+                    || kv.Key.y < 0 || kv.Key.y >= _cellRects.GetLength(1)) continue;
+                var cell = _cellRects[kv.Key.x, kv.Key.y];
+                if (cell == null) continue;
+                StartCoroutine(FloatDelta(cell, kv.Value));
+                StartCoroutine(PopNumber(cell));
+            }
+        }
+
+        /// <summary>浮动增减量文字：从格子中央往上浮起并渐隐（增长金、减少红）。</summary>
+        IEnumerator FloatDelta(RectTransform cell, int delta)
+        {
+            bool up = delta > 0;
+            var t = UIFactory.CreateText("Delta", cell, (up ? "+" : "") + delta, 40,
+                up ? GameConfig.Accent : GameConfig.Hex("#FF2222"));
+            var rt = t.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(90f, 44f);
+            rt.anchoredPosition = new Vector2(0f, 20f);
+
+            float time = 0f;
+            const float dur = 0.7f;
+            while (time < dur)
+            {
+                time += Time.deltaTime;
+                float k = time / dur;
+                rt.anchoredPosition = new Vector2(0f, 20f + 44f * k);
+                Color c = t.color; c.a = 1f - k; t.color = c;
+                yield return null;
+            }
+            Destroy(t.gameObject);
+        }
+
+        /// <summary>数字缩放 pop：1 → 1.4 → 1（只缩放数字文字，不动格子底）。</summary>
+        IEnumerator PopNumber(RectTransform cell)
+        {
+            var txt = cell.Find("Value");
+            if (txt == null) yield break;
+            var rt = (RectTransform)txt;
+            float t = 0f;
+            const float dur = 0.25f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                float k = t / dur;
+                rt.localScale = Vector3.one * (1f + 0.4f * Mathf.Sin(k * Mathf.PI));
+                yield return null;
+            }
+            rt.localScale = Vector3.one;
         }
 
         /// <summary>打击反馈：命中格子粒子爆发 + 闪白 + 屏幕微震。</summary>
@@ -986,8 +1094,8 @@ namespace ShuYu
             gm.PlayCard(_selectedCard, row, col);
             _selectedCard = null;
 
-            if (played != null) played.PlayCard(0.2f, () => { Build(); SpawnHitFeedback(hitCells); });
-            else { Build(); SpawnHitFeedback(hitCells); }
+            if (played != null) played.PlayCard(0.2f, () => { Build(); SpawnHitFeedback(hitCells); if (hitCells.Count > 0) _monsterAnim?.Play(MonsterAnimState.Hit); });
+            else { Build(); SpawnHitFeedback(hitCells); if (hitCells.Count > 0) _monsterAnim?.Play(MonsterAnimState.Hit); }
         }
 
         void OnEndTurnClicked()
@@ -1019,11 +1127,17 @@ namespace ShuYu
             turn.ResolveAttack();
             int hurt = hpBefore - gm.Player.health;
             Build();
-            if (hurt > 0) SpawnPlayerHurtFeedback(hurt, attackerPos);   // 受击音效 + 屏闪 + 伤害飞字
+            if (hurt > 0)
+            {
+                _monsterAnim?.Play(MonsterAnimState.Attack);   // 怪物咬人：播攻击动画
+                SpawnPlayerHurtFeedback(hurt, attackerPos);    // 受击音效 + 屏闪 + 伤害飞字
+            }
             yield return new WaitForSeconds(0.2f);
 
+            var beforeGrowth = SnapshotBoard();
             turn.ResolveGrowth();
             Build();
+            SpawnValueDeltaFeedback(ComputeDeltas(beforeGrowth));   // 增殖的 +N 浮动 + 数字 pop（确定感）
             yield return new WaitForSeconds(0.4f);
 
             turn.ResolveOverflow();

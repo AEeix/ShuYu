@@ -39,6 +39,7 @@ namespace ShuYu
         [SerializeField] Button _startButton;      // 主按钮（开始游戏 / 继续游戏）
         [SerializeField] Button _newGameButton;    // 开始新游戏（有存档才显示）
         [SerializeField] Button _settingsButton;   // 设置
+        [SerializeField] Button _codexButton;      // 卡牌图鉴
         [SerializeField] Button _quitButton;
         [SerializeField] GameObject _classSelectRoot;
         [SerializeField] GameObject _routeRoot;
@@ -134,31 +135,39 @@ namespace ShuYu
                 _settingsButton.onClick.RemoveListener(ShowSettings);
                 _settingsButton.onClick.AddListener(ShowSettings);
             }
+            if (_codexButton != null)
+            {
+                _codexButton.onClick.RemoveListener(ShowCodex);
+                _codexButton.onClick.AddListener(ShowCodex);
+            }
             if (_quitButton != null)
             {
                 _quitButton.onClick.RemoveListener(QuitGame);
                 _quitButton.onClick.AddListener(QuitGame);
             }
-            EnsureCodexButton();   // 旧场景里没有图鉴按钮，运行时补一个
+            LayoutTitleButtons(hasSave);   // 无存档时「开始新游戏」隐藏，下方按钮上移补位
         }
 
-        const string CodexButtonName = "CodexButton";
-
         /// <summary>
-        /// 标题右侧的「卡牌图鉴」按钮。
-        /// 现在的 Main.unity 是更早的 SceneBuilder 生成的、里面没有这个按钮，所以运行时补一个；
-        /// 已有同名子节点就跳过，保证幂等（回到标题会被反复调用）。
+        /// 按存档状态重排标题按钮：无存档时「开始新游戏」隐藏，其下方的设置/图鉴/退出整体上移 80（NewGame 槽位 70 + 间距 10）补位。
+        /// 场景烘焙时按「有存档」的满排位置生成，这里在运行时按实际存档状态收拢空档。
         /// </summary>
-        void EnsureCodexButton()
+        void LayoutTitleButtons(bool hasSave)
         {
-            if (_titleRoot == null) return;
-            if (_titleRoot.transform.Find(CodexButtonName) != null) return;
+            float shift = hasSave ? 0f : 80f;
+            RepositionY(_settingsButton, 380 + shift, 450 + shift);
+            RepositionY(_codexButton, 300 + shift, 370 + shift);
+            RepositionY(_quitButton, 220 + shift, 290 + shift);
+        }
 
-            var btn = UIFactory.CreateButton(CodexButtonName, _titleRoot.transform, "卡牌图鉴", 38,
-                GameConfig.CardBase, GameConfig.Accent, ShowCodex);
-            // 贴右侧（参考分辨率 1920×1080），右下留边距，避开左侧沿 Y 轴竖排的主菜单
-            UIFactory.Place(btn, Vector2.zero, Vector2.zero,
-                new Vector2(1480, 470), new Vector2(1820, 550));
+        void RepositionY(Button btn, float bottom, float top)
+        {
+            if (btn == null) return;
+            var rt = (RectTransform)btn.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.zero;
+            rt.offsetMin = new Vector2(rt.offsetMin.x, bottom);
+            rt.offsetMax = new Vector2(rt.offsetMax.x, top);
         }
 
         /// <summary>打开卡牌图鉴。</summary>
@@ -170,7 +179,7 @@ namespace ShuYu
         }
 
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
-        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button newGameButton, Button settingsButton, Button quitButton,
+        public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button newGameButton, Button settingsButton, Button codexButton, Button quitButton,
             GameObject classSelectRoot, GameObject routeRoot)
         {
             _worldRoot = worldRoot;
@@ -178,6 +187,7 @@ namespace ShuYu
             _startButton = startButton;
             _newGameButton = newGameButton;
             _settingsButton = settingsButton;
+            _codexButton = codexButton;
             _quitButton = quitButton;
             _classSelectRoot = classSelectRoot;
             _routeRoot = routeRoot;
