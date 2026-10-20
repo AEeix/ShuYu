@@ -23,6 +23,22 @@ namespace ShuYu
     public enum NumberKind { Normal, Part, Core }
 
     /// <summary>
+    /// 卡牌「强化条件」：满足条件时，这张牌用 <see cref="CardData.bonusMagnitude"/> 代替原本的数值。
+    /// （例：极寒在目标已被冻结时从 -2 变 -4；奥术彗星在九宫格内有相同数字时从 -2 变 -6。）
+    /// </summary>
+    public enum CardCondition
+    {
+        /// <summary>没有条件，始终用原数值。</summary>
+        None,
+
+        /// <summary>目标格已被冻结。</summary>
+        TargetFrozen,
+
+        /// <summary>目标格周围九宫格内存在与它相同的数字。</summary>
+        SameValueAround,
+    }
+
+    /// <summary>
     /// 毒性标记：挂在格子上的状态，平时完全不起作用。
     /// 只有当这一格再次获得「非自然成长」（卡牌抬升数值）时才累计，累计够 goal 点就对这一格造成 damage 点直接伤害，然后该标记消失。
     /// 同一格可以叠加多个标记，各自独立累计：
@@ -51,7 +67,7 @@ namespace ShuYu
         public NumberKind kind;     // 普通 / 攻击部位 / 核心
         public int attackOrder;     // 部位固定攻击顺序（Part 用，Normal/Core 忽略）
         public int coreGroup;       // 核心归属分组（Part/Core 用，多核心 BOSS 逐核坏死；Normal 恒 0）
-        public bool frozen;         // 冰冻：跳过本轮增殖
+        public int freeze;          // 冻结层数：还剩几个玩家回合不能行动（不成长、不攻击）；每个玩家回合开始时 -1
         public int burn;            // 灼烧层数：每个玩家回合开始时该格数值 -层数；命中叠加（0 = 未灼烧）
         public List<ToxinMark> toxins = new List<ToxinMark>();  // 毒性标记（可叠加多个，各自独立累计）
         public int delayedValueDelta;   // 延迟数值变化：下个回合开始时并入该格数值（正=加，负=减）
@@ -77,9 +93,9 @@ namespace ShuYu
         public int cost;         // 能量费用
         public string description; // 卡牌描述（职业专属卡用，基础卡为空）
         public string cardName;   // 卡牌名字（如「重击」「铁腕重击」）
-        public bool enchant;      // 附魔卡（如火焰附魔：下一次攻击附带灼烧）
-        public int burnLayers;    // 命中时给目标叠加的灼烧层数（>0 为带灼烧的牌；火焰附魔/烈焰）
-        public bool freezes;      // 命中附带冰冻（跳过增殖）
+        public bool enchant;      // 附魔卡（如淬火：下一次攻击附带灼烧）
+        public int burnLayers;    // 命中时给目标叠加的灼烧层数（>0 为带灼烧的牌；淬火/火球术）
+        public int freezeLayers;  // 命中时给目标叠加的冻结层数（>0 为带冻结的牌；冻结）
         public int heal;          // 治疗量（>0 为回血卡，无需目标）
         public int induce;        // 诱导量（>0 为诱导卡：立即获得 N 点非自然成长，并跳过下回合自然成长）
         public int toxinGoal;     // 毒性催化：需累计的非自然成长点数（>0 为标记卡）
@@ -89,8 +105,18 @@ namespace ShuYu
         public int delayedValueDelta; // 延迟数值变化：下个回合开始时并入目标格的数值（负 = 减，0 = 无；同格叠加）
         public bool noCore;           // 不能对核心使用（镰刀横扫）
         public string label;          // 卡面大字覆盖（为空则按运算/目标自动生成，如「+2」「标记」）
+        public int onHurtAllDelta;    // 挂起效果：玩家下次受到伤害后，所有格数值 -N（愈战愈勇 -1）
+        public int onHurtHeal;        // 挂起效果：玩家下次受到伤害后，恢复 N 点生命（愈战愈勇 2）
         public ClassTag owner;        // 职业成员标记：标了某职业 → 进该职业的牌池 & 图鉴职业段（None = 全职业牌）
         public bool upgraded;         // 是否已被强化过（火堆强化 → 名字后加「+」并换色）
+        public int gainEnergy;        // 出牌后立刻获得的能量（倍增/倍化：0 费还返 1 能量）
+        public bool negateAttack;     // 使敌人「下回合」的攻击无效化（全副武装）；无需选目标
+        public int otherCellsDelta;   // 对「除主目标以外」的所有格造成的数值变化（倍化 -2）
+        public int preGrowth;         // 执行主运算前先给主目标 +N 点非自然成长（镰刀横扫 +1）
+        public CardCondition condition;   // 是否满足「强化条件」（如目标已被冻结 → 改用 bonusMagnitude）
+        public int bonusMagnitude;        // 满足条件时替换成的数值（极寒 2→4、奥术彗星 2→6）
+        public bool isToken;              // 衍生牌：只由卡牌/遗物产生，不进卡组、不进奖励、用完即消失，只在图鉴「衍生牌」段展示
+        public bool noTarget;             // 不需要选格子就能打（纯资源/效果类牌，如衍生牌「法力饼干」）
 
         public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false, string cardName = null)
         {
@@ -122,7 +148,7 @@ namespace ShuYu
             if (enchant) return "附魔";
             if (induce > 0) return "诱导";
             if (toxinGoal > 0) return "标记";
-            if (freezes && magnitude == 0) return "冰冻";
+            if (freezeLayers > 0 && magnitude == 0) return "冻结";
             if (heal > 0) return "回血";
             string s;
             switch (op)
@@ -142,7 +168,13 @@ namespace ShuYu
             return s;
         }
 
-        /// <summary>强化卡牌：回血牌 +2 治疗；诱导牌 +1 诱导量；毒性催化 +3 伤害；有数值的牌数值 +1；0 数值牌（附魔/冰冻）降 1 费。</summary>
+        /// <summary>
+        /// 强化卡牌：回血牌 +2 治疗；诱导牌 +1 诱导量；毒性催化 +3 伤害；有数值的牌数值 +1；0 数值牌降 1 费。
+        /// <para>
+        /// ⚠️ **不改灼烧/冻结层数**：层数是「卡面写多少就是多少」，而描述文本是静态字符串，
+        /// 若强化悄悄加层，会出现「卡面写 灼烧+2、实际却是 3」的错位。
+        /// </para>
+        /// </summary>
         public void Upgrade()
         {
             upgraded = true;
@@ -189,7 +221,7 @@ namespace ShuYu
             {
                 var n = new NumberData(numbers[i].value, numbers[i].row, numbers[i].col, numbers[i].kind, numbers[i].attackOrder, numbers[i].coreGroup);
                 n.burn = numbers[i].burn;
-                n.frozen = numbers[i].frozen;
+                n.freeze = numbers[i].freeze;
                 n.delayedValueDelta = numbers[i].delayedValueDelta;
                 foreach (var m in numbers[i].toxins)
                     n.toxins.Add(new ToxinMark(m.goal, m.damage) { progress = m.progress });

@@ -199,6 +199,14 @@ namespace ShuYu
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CodexScreen>(); });
         }
 
+        /// <summary>打开关键词图鉴（从卡牌图鉴右上角进入；内容来自 KeywordCatalog）。</summary>
+        public void ShowKeywords()
+        {
+            if (_titleFx != null) _titleFx.SetVisible(false);
+            EnsureWorld();
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<KeywordCodexScreen>(); });
+        }
+
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
         public void BindScene(GameObject worldRoot, GameObject titleRoot, Button startButton, Button newGameButton, Button settingsButton, Button codexButton, Button quitButton,
             GameObject classSelectRoot, GameObject routeRoot)
@@ -482,9 +490,9 @@ namespace ShuYu
         {
             _cls = cls;
             _player = new PlayerState(cls.initialHealth);
+            if (cls.startingRelic.HasValue) _player.relics.Add(cls.startingRelic.Value);   // 职业初始遗物
             _deck = new Deck(cls.startingDeck);
             _route = RouteMap.Generate();
-            _battlesFought = 0;   // 新的一局：核心成长从「前两场 +3」重新算
 
             ShowRoute();
         }
@@ -591,20 +599,26 @@ namespace ShuYu
             MusicPlayer.Instance?.Play(battleType == NodeType.Boss ? MusicTrack.Boss : MusicTrack.Combat);
             var board = SpawnBoard(battleType, _route.movesTaken);
             _deck.Reset();   // 每场战斗前重置卡组
-            _battlesFought++;
-            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn, CoreGrowthFor(battleType));
+            // 怪物自然成长按「怪物等级」取档位（普通 / 精英 / BOSS 的具体数值见 Core/GrowthTable.cs）
+            _turn = new TurnManager(_cls, board, _player, _deck, GameConfig.EnergyPerTurn, GrowthTable.Of(TierOf(battleType)));
+
+            // 遗物「法力饼干盒」：战斗开始时往手牌里塞一张衍生牌
+            if (_player.HasRelic(RelicType.ManaCookie))
+                _turn.deck.hand.Add(CardLibrary.ManaCookie());
 
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<BattleScreen>(); });
         }
 
-        /// <summary>核心每回合喂养量按难度分阶段：前两场 +3（压难度）→ 之后 +4 → BOSS +5。</summary>
-        int CoreGrowthFor(NodeType battleType)
+        /// <summary>把地图节点类型翻译成「怪物等级」（只有战斗/精英/BOSS 用到成长档位）。</summary>
+        static MonsterTier TierOf(NodeType battleType)
         {
-            if (battleType == NodeType.Boss) return GameConfig.CoreGrowthBoss;
-            return _battlesFought <= 2 ? GameConfig.CoreGrowthEarly : GameConfig.CoreGrowth;
+            switch (battleType)
+            {
+                case NodeType.Elite: return MonsterTier.Elite;
+                case NodeType.Boss: return MonsterTier.Boss;
+                default: return MonsterTier.Normal;
+            }
         }
-
-        int _battlesFought;   // 本局已经打过的战斗场数（含当前这场），用于核心成长分阶段
 
         BoardState SpawnBoard(NodeType type, int row)
         {
@@ -765,8 +779,6 @@ namespace ShuYu
             if (data.relics != null) _player.relics = data.relics;
             _deck = new Deck(data.deck);
             _route = data.route;
-            // 战斗场数没有存档，用「已走过的节点数」当代理（只会偏大，不会让后期怪退回 +3）
-            _battlesFought = data.route.currentIndex;
             ShowRoute();
         }
 
@@ -800,6 +812,7 @@ namespace ShuYu
             var treasure = GetComponent<TreasureScreen>(); if (treasure != null) Destroy(treasure);
             var relic = GetComponent<RelicRewardScreen>(); if (relic != null) Destroy(relic);
             var codex = GetComponent<CodexScreen>(); if (codex != null) Destroy(codex);
+            var keywords = GetComponent<KeywordCodexScreen>(); if (keywords != null) Destroy(keywords);
         }
 
         /// <summary>只显示指定场景框架（其余隐藏）。frame 为 null 则全部隐藏。</summary>

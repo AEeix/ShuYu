@@ -262,8 +262,8 @@ namespace ShuYu
                 UIFactory.Stretch(ov.rectTransform);
             }
 
-            // 冰冻：冰蓝覆盖层（盖在格子底色上、文字之下）
-            if (data != null && data.frozen)
+            // 冻结：冰蓝覆盖层（盖在格子底色上、文字之下）
+            if (data != null && data.freeze > 0)
             {
                 var ov = UIFactory.CreatePanel("Frozen", rt, new Color(0.3f, 0.6f, 1f, 0.4f));
                 ov.raycastTarget = false;
@@ -298,6 +298,9 @@ namespace ShuYu
                 // 高危数字颤抖（SPEC 13.4：8 明显 / 9 剧烈）
                 if (data.value >= 8)
                     txt.gameObject.AddComponent<NumberShake>().Setup(data.value >= 9 ? 3.5f : 1.5f);
+
+                // 自然成长标记：数字正上方显示这一格每回合会 +N（核心与部位数值不同，随怪物等级变化）
+                CreateGrowthBadge(rt, cellSize, gm.Turn.GrowthOf(data));
             }
 
             if (isAttacker)
@@ -311,9 +314,14 @@ namespace ShuYu
                 mrt.sizeDelta = new Vector2(cellSize * 0.3f, cellSize * 0.3f);
             }
 
-            // 状态数值（格子底部一行）：灼烧层数「火N」+ 毒性标记进度「已累计/所需」（多个用 · 分隔）
+            // 状态数值（格子底部一行）：灼烧层数「火N」+ 冻结层数「冰N」+ 毒性标记进度「已累计/所需」
             var statusText = new System.Text.StringBuilder();
             if (hasBurn) statusText.Append("火").Append(data.burn);
+            if (data != null && data.freeze > 0)
+            {
+                if (statusText.Length > 0) statusText.Append(" · ");
+                statusText.Append("冰").Append(data.freeze);
+            }
             if (hasToxin)
             {
                 foreach (var m in data.toxins)
@@ -343,6 +351,23 @@ namespace ShuYu
                 drt.sizeDelta = new Vector2(cellSize * 0.5f, cellSize * 0.24f);
             }
 
+        }
+
+        /// <summary>
+        /// 在格子顶部画一个「+N」小标记，表示这一格每回合会自然成长多少。
+        /// 数值由 <see cref="TurnManager.GrowthOf"/> 统一提供，所以普通格/核心格、不同等级的怪都会自动显示对应数字。
+        /// </summary>
+        void CreateGrowthBadge(RectTransform cell, float cellSize, int growth)
+        {
+            if (growth <= 0) return;   // 不成长就不画
+
+            var badge = UIFactory.CreateText("Growth", cell, "+" + growth, cellSize * 0.2f, GameConfig.GrowthMark);
+            var rt = badge.rectTransform;
+            rt.anchorMin = new Vector2(0.5f, 1f);     // 贴格子顶部
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -1f);
+            rt.sizeDelta = new Vector2(cellSize * 0.7f, cellSize * 0.24f);
         }
 
         void BuildHand(Transform parent)
@@ -579,7 +604,7 @@ namespace ShuYu
             // 描述（底部；字号自动缩放，长文本不被截断）
             if (!string.IsNullOrEmpty(card.description))
             {
-                var desc = UIFactory.CreateText("Desc", rt, card.description, 22, GameConfig.SubText);
+                var desc = UIFactory.CreateText("Desc", rt, KeywordCatalog.Highlight(card.description), 22, GameConfig.SubText);
                 desc.alignment = TextAlignmentOptions.Center;
                 desc.enableAutoSizing = true;
                 desc.fontSizeMin = 11;
@@ -665,7 +690,7 @@ namespace ShuYu
         List<Vector2Int> GetTargets(CardData card, int row, int col)
         {
             var result = new List<Vector2Int>();
-            if (card.enchant || card.heal > 0) return result;  // 附魔/回血卡不指向格子
+            if (card.enchant || card.heal > 0 || card.noTarget) return result;   // 附魔/回血/纯资源卡不指向格子
             var board = GameManager.Instance.Board;
             switch (card.target)
             {

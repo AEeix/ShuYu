@@ -17,11 +17,8 @@ namespace ShuYu
         // public const int CoreExplosionDamage = 5;   // 原：核心爆炸固定伤害
         // public const int CoreResetValue = 3;        // 原：核心爆炸后回落值
         public const int InitialEnemyValue = 6;     // M0 小怪初始值
-        public const int CoreGrowth = 4;            // 核心每回合喂养量（中后期/BOSS 之外的默认值）
-        public const int CoreGrowthEarly = 3;       // 前两场战斗：核心喂养量（压难度，给玩家熟悉机制）
-        public const int CoreGrowthBoss = 5;        // BOSS 战：核心喂养量（加压）
-        public const int PartGrowth = 2;            // 普通/部位每回合增殖量（占位待调）
-        public const int EnchantBurnLayers = 2;     // 火焰附魔命中时叠加的灼烧层数
+        // 怪物每回合的自然成长量不在这里：按「怪物等级」分档，统一放在 Core/GrowthTable.cs
+        public const int EnchantBurnLayers = 2;     // 淬火命中时叠加的灼烧层数
         public const int InvasionInterval = 2;      // 每 N 回合触发一次数字入侵
         public const int InvasionCount = 2;         // 每次入侵新增的数字个数
         public const int InvasionMinValue = 1;      // 入侵数字值下限（SPEC 4：1~3）
@@ -43,6 +40,7 @@ namespace ShuYu
         public static readonly Color BurnCell = new Color(0.95f, 0.32f, 0.1f, 0.6f);    // 带灼烧的格子底色（橙红）
         public static readonly Color BurnFlame = Hex("#FF7A1A");                         // 火焰特效主色
         public static readonly Color BurnFlameHot = Hex("#FFD84D");                      // 火焰特效高光
+        public static readonly Color GrowthMark = Hex("#FFE08A");                        // 格子上方的「自然成长 +N」标记
 
         public static Color Hex(string hex)
         {

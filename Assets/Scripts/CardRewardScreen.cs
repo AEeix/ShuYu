@@ -65,7 +65,7 @@ namespace ShuYu
                 // 字号自动缩放，保证多行文本整段显示不被截断。
                 if (!string.IsNullOrEmpty(card.description))
                 {
-                    var desc = UIFactory.CreateText("Desc", cardRt, card.description, 26, GameConfig.SubText);
+                    var desc = UIFactory.CreateText("Desc", cardRt, KeywordCatalog.Highlight(card.description), 26, GameConfig.SubText);
                     desc.alignment = TextAlignmentOptions.Center;
                     desc.enableAutoSizing = true;
                     desc.fontSizeMin = 13;

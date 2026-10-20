@@ -49,7 +49,7 @@ namespace ShuYu
         public bool PlayCard(CardData card)
         {
             if (!hand.Remove(card)) return false;
-            discardPile.Add(card);
+            if (!card.isToken) discardPile.Add(card);   // 衍生牌用完即消失，不进弃牌堆（否则会被反复抽到）
             return true;
         }
 

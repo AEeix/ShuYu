@@ -32,50 +32,119 @@ namespace ShuYu
             }
         }
 
-        /// <summary>战士专属卡：铁腕重击（2 费，-5，配被动「铁腕」实际 -6）。</summary>
+        /// <summary>战士专属卡：铁腕重击（2 费，-6，配被动「铁腕」实际 -7）。</summary>
         public static CardData WarriorClassCard()
         {
-            return new CardData(Operation.Subtract, TargetType.Single, 5, 2, "削减一个数字", false, "铁腕重击") { owner = ClassTag.Warrior };
+            return new CardData(Operation.Subtract, TargetType.Single, 6, 2, "削减一个数字", false, "铁腕重击") { owner = ClassTag.Warrior };
         }
 
-        /// <summary>战士专属卡：横扫（2 费，对一整行 -2，配被动 -3）。</summary>
-        public static CardData WarriorSweep()
-        {
-            return new CardData(Operation.Subtract, TargetType.Row, 2, 2, "削减一整行数字", false, "横扫") { owner = ClassTag.Warrior };
-        }
-
-        /// <summary>战士专属卡：火焰附魔（1 费，下一次数值攻击命中时给格子叠加 2 层灼烧）。</summary>
-        /// <remarks>灼烧层数是固定值：不吃铁腕、铁腕护符等任何增幅（卡面写 2 就是 2）。</remarks>
-        public static CardData WarriorEnchant()
+        /// <summary>
+        /// 战士专属卡：愈战愈勇（1 费，你**下次受到伤害后**：所有格 -1，并恢复 2 点生命）。
+        /// 不需要选目标；挂起的效果在玩家真正挨打时结算一次（同回合打多张则叠加）。
+        /// </summary>
+        public static CardData WarriorFury()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
-                "下一次数值攻击附带 灼烧+2", true, "火焰附魔") { owner = ClassTag.Warrior };
-            c.burnLayers = 2;   // 火焰附魔的灼烧层数 = 2
+                "你下次受到伤害后：所有格 -1，并恢复 2 点生命", false, "愈战愈勇") { owner = ClassTag.Warrior };
+            c.noTarget = true;
+            c.onHurtAllDelta = -1;
+            c.onHurtHeal = 2;
+            c.label = "-1";   // 卡面大字显示对全场的削减量
             return c;
         }
 
-        /// <summary>法师专属卡：烈焰（2 费，对一个数字 -2 并叠加 1 层灼烧）。</summary>
-        public static CardData MageFire()
+        /// <summary>战士专属卡：横扫（2 费，对一整行 -3，配被动 -4）。</summary>
+        public static CardData WarriorSweep()
         {
-            var c = new CardData(Operation.Subtract, TargetType.Single, 2, 2,
-                "对一个数字 -2，并附带 灼烧+1", false, "烈焰") { owner = ClassTag.Mage };
-            c.burnLayers = 1;
+            return new CardData(Operation.Subtract, TargetType.Row, 3, 2, "削减一整行数字", false, "横扫") { owner = ClassTag.Warrior };
+        }
+
+        /// <summary>战士专属卡：淬火（1 费，下一次数值攻击命中时给格子叠加 2 层灼烧）。</summary>
+        /// <remarks>灼烧层数是固定值：不吃铁腕、铁腕护符等任何增幅（卡面写 2 就是 2）。</remarks>
+        public static CardData WarriorQuench()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
+                "下一次数值攻击附带 灼烧+2", true, "淬火") { owner = ClassTag.Warrior };
+            c.burnLayers = 2;   // 淬火的灼烧层数 = 2
             return c;
         }
 
-        /// <summary>法师专属卡：冰霜（2 费，冰冻一个数字，跳过它下一轮自然成长）。</summary>
-        public static CardData MageIce()
+        /// <summary>
+        /// 战士专属卡：全副武装（2 费，使敌人下回合的攻击无效化；你的下一回合多获得 1 点能量）。
+        /// 不需要选目标（像附魔/回血卡一样直接生效）。
+        /// </summary>
+        public static CardData WarriorArmor()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
-                "冰冻一个数字，跳过它下一轮自然成长", false, "冰霜") { owner = ClassTag.Mage };
-            c.freezes = true;
+                "敌人下回合的攻击无效；你的下一回合多获得 1 点能量", false, "全副武装") { owner = ClassTag.Warrior };
+            c.negateAttack = true;
+            c.nextEnergyDelta = 1;
+            c.label = "格挡";
             return c;
         }
 
-        /// <summary>法师专属卡：解析风暴（2 费，对一列所有数字 ÷2，配被动「解析」切干净）。</summary>
-        public static CardData MageStorm()
+        /// <summary>法师专属卡：冻结（2 费，给目标叠 2 层冻结：接下来的两个玩家回合内它不成长、不攻击）。</summary>
+        public static CardData MageFreeze()
         {
-            return new CardData(Operation.Divide, TargetType.Column, 2, 2, "对一整列 ÷2", false, "解析风暴") { owner = ClassTag.Mage };
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
+                "给予 冻结+2", false, "冻结") { owner = ClassTag.Mage };
+            c.freezeLayers = 2;
+            c.label = "+2";   // 卡面大字显示层数，名字「冻结」走右上角（与诱导/菌种培育一致）
+            return c;
+        }
+
+        /// <summary>法师专属卡：极寒（1 费，-2；若目标格已被冻结，改为 -4）。</summary>
+        public static CardData MageChill()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 2, 1,
+                "若目标格已被 冻结，则改为 -4", false, "极寒") { owner = ClassTag.Mage };
+            c.condition = CardCondition.TargetFrozen;
+            c.bonusMagnitude = 4;
+            return c;
+        }
+
+        /// <summary>法师专属卡：火球术（2 费，-2 并给目标叠 2 层灼烧）。</summary>
+        public static CardData MageFireball()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 2, 2,
+                "对一个数字 -2，并给予 灼烧+2", false, "火球术") { owner = ClassTag.Mage };
+            c.burnLayers = 2;
+            return c;
+        }
+
+        /// <summary>法师专属卡：奥术彗星（2 费，-2；若目标周围九宫格内有相同数字，改为 -6）。</summary>
+        public static CardData MageComet()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 2, 2,
+                "若该格周围九宫格内有相同数字，则改为 -6", false, "奥术彗星") { owner = ClassTag.Mage };
+            c.condition = CardCondition.SameValueAround;
+            c.bonusMagnitude = 6;
+            return c;
+        }
+
+        /// <summary>法师专属卡：法力护盾（2 费，免疫敌人下一次攻击；无需选目标）。</summary>
+        public static CardData MageShield()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
+                "免疫敌人的下一次攻击", false, "法力护盾") { owner = ClassTag.Mage };
+            c.negateAttack = true;
+            c.label = "护盾";
+            return c;
+        }
+
+        // ---- 衍生牌（只由卡牌/遗物产生，不进卡组、不进奖励、用完即消失）----
+
+        /// <summary>衍生牌：法力饼干（0 费，立刻获得 2 点能量；你的下一回合开始时失去 1 点能量）。</summary>
+        public static CardData ManaCookie()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 0,
+                "获得 2 点能量；你的下一回合开始时失去 1 点能量", false, "法力饼干") { owner = ClassTag.All };
+            c.isToken = true;
+            c.noTarget = true;   // 纯资源牌，不需要选格子
+            c.gainEnergy = 2;
+            c.nextEnergyDelta = -1;
+            c.label = "+2";   // 卡面大字显示获得的能量
+            return c;
         }
 
         // ---- 旧收割者牌（加法催爆流，2026-10 重构为「非自然成长 + 毒性催化」后停用，保留待查）----
@@ -99,11 +168,11 @@ namespace ShuYu
         //     return c;
         // }
 
-        /// <summary>收割者专属卡：诱导（1 费，目标格 +2 非自然成长，并锁住下回合自然成长）。</summary>
+        /// <summary>收割者专属卡：诱导（1 费，目标格 +2 非自然成长，并给该格 1 层冻结）。</summary>
         public static CardData ReaperInduce()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
-                "+2\n锁定该格下一回合的自然成长", false, "诱导") { owner = ClassTag.Reaper };
+                "+2\n给予 冻结+1", false, "诱导") { owner = ClassTag.Reaper };
             c.induce = 2;
             c.label = "+2";   // 蓝色大字优先显示数值 +2，名字「诱导」走右上角小字
             return c;
@@ -119,11 +188,11 @@ namespace ShuYu
             return c;
         }
 
-        /// <summary>收割者专属卡：菌种培育（1 费，+2 非自然成长 + 封锁该格下回合自然成长 + 下个回合该格 -4）。</summary>
+        /// <summary>收割者专属卡：菌种培育（1 费，+2 非自然成长 + 给该格 1 层冻结 + 下个回合该格 -4）。</summary>
         public static CardData ReaperSeed()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
-                "+2\n封锁该格下回合自然成长\n下个回合该格 -4", false, "菌种培育") { owner = ClassTag.Reaper };
+                "+2\n给予 冻结+1\n下个回合该格 -4", false, "菌种培育") { owner = ClassTag.Reaper };
             c.induce = 2;                 // 立即 +2 非自然成长，并把该格下回合的自然成长冻掉
             c.delayedValueDelta = -4;     // 下个回合开始时该格 -4
             c.label = "+2";               // 卡面大字（不然会显示成「诱导」）
@@ -140,12 +209,13 @@ namespace ShuYu
             return c;
         }
 
-        /// <summary>收割者专属卡：镰刀横扫（1 费，单格 -5，不能对核心使用）。</summary>
+        /// <summary>收割者专属卡：镰刀横扫（1 费，对单格先 +1 再 -5，不能对核心使用）。</summary>
         public static CardData ReaperScytheSweep()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 5, 1,
-                "单格 -5，不能对核心使用", false, "镰刀横扫") { owner = ClassTag.Reaper };
+                "先 +1，再 -5；不能对核心使用", false, "镰刀横扫") { owner = ClassTag.Reaper };
             c.noCore = true;
+            c.preGrowth = 1;   // 主运算（-5）之前先给该格 +1 非自然成长
             return c;
         }
 
@@ -167,6 +237,24 @@ namespace ShuYu
             return c;
         }
 
+        /// <summary>战利品牌：倍增（0 费，单格 ×2；出牌后立刻获得 1 点能量）。</summary>
+        public static CardData RewardDouble()
+        {
+            var c = new CardData(Operation.Multiply, TargetType.Single, 2, 0, "出牌后立刻获得 1 点能量", false, "倍增") { owner = ClassTag.All };
+            c.gainEnergy = 1;
+            return c;
+        }
+
+        /// <summary>战利品牌：倍化（0 费，单格 ×3；对除该格外的所有格 -2；出牌后立刻获得 1 点能量）。</summary>
+        public static CardData RewardTriple()
+        {
+            var c = new CardData(Operation.Multiply, TargetType.Single, 3, 0,
+                "对除该格外的所有格 -2；出牌后立刻获得 1 点能量", false, "倍化") { owner = ClassTag.All };
+            c.gainEnergy = 1;
+            c.otherCellsDelta = -2;   // 主目标之外的所有格 -2
+            return c;
+        }
+
         static readonly System.Random _rng = new System.Random();
 
         /// <summary>
@@ -182,6 +270,17 @@ namespace ShuYu
             };
         }
 
+        /// <summary>战利品牌：休假（3 费，恢复 15 点生命；你的下一回合开始时失去 2 点能量）。</summary>
+        public static CardData RewardVacation()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 3,
+                "恢复 15 点生命；你的下一回合开始时失去 2 点能量", false, "休假") { owner = ClassTag.All };
+            c.heal = 15;
+            c.nextEnergyDelta = -2;
+            c.label = "回血";   // 卡面大字（不然会显示成 -0）
+            return c;
+        }
+
         /// <summary>
         /// 战利品池全量（只剩真正的战利品牌；不含职业专属牌，也不含 -1/-2 起手基础牌）。
         /// 图鉴与 RewardChoices 共用这一份定义，避免两处漂移。
@@ -193,11 +292,12 @@ namespace ShuYu
                 Make(Operation.Subtract, 3),                            // 重击 -3
                 RewardHalve(),                                          // 折半 ÷2，延迟费用
                 Make(Operation.Divide, 3, 2),                           // 分割 ÷3
-                Make(Operation.Multiply, 2),                            // 倍增 ×2
-                Make(Operation.Multiply, 3),                            // 倍化 ×3
+                RewardDouble(),                                         // 倍增 ×2（0 费，返 1 能量）
+                RewardTriple(),                                         // 倍化 ×3（0 费，其余格 -2，返 1 能量）
                 new CardData(Operation.Subtract, TargetType.Row, 1, 1, null, false, "削减一整行") { owner = ClassTag.All },
                 new CardData(Operation.Subtract, TargetType.Column, 1, 1, null, false, "削减一整列") { owner = ClassTag.All },
                 RewardAllOut(),                                         // 全力进攻：全体 -1，下回合少抽 1 张
+                RewardVacation(),                                       // 休假：回 15 血，下回合 -2 能量
             };
         }
 
@@ -207,6 +307,18 @@ namespace ShuYu
             var list = RewardPool();
             list.AddRange(UniversalBasics());
             return list;
+        }
+
+        /// <summary>
+        /// 所有「衍生牌」的唯一清单：只由卡牌/遗物产生，不进卡组、不进奖励，用在图鉴的「衍生牌」段。
+        /// 新增衍生牌 = 写工厂方法（里面设 `isToken = true`）+ 在这里加一行。
+        /// </summary>
+        public static List<CardData> AllTokenCards()
+        {
+            return new List<CardData>
+            {
+                ManaCookie(),   // 法力饼干（法师初始遗物产生）
+            };
         }
 
         /// <summary>
@@ -220,11 +332,15 @@ namespace ShuYu
                 // 战士
                 WarriorClassCard(),   // 铁腕重击
                 WarriorSweep(),       // 横扫
-                WarriorEnchant(),     // 火焰附魔
+                WarriorQuench(),      // 淬火（原「火焰附魔」）
+                WarriorArmor(),       // 全副武装
+                WarriorFury(),        // 愈战愈勇
                 // 法师
-                MageFire(),           // 烈焰
-                MageIce(),            // 冰霜
-                MageStorm(),          // 解析风暴
+                MageFreeze(),         // 冻结
+                MageChill(),          // 极寒
+                MageFireball(),       // 火球术
+                MageComet(),          // 奥术彗星
+                MageShield(),         // 法力护盾
                 // 收割者
                 ReaperInduce(),          // 诱导
                 ReaperToxicCatalyst(),   // 毒性催化
@@ -285,7 +401,7 @@ namespace ShuYu
             {
                 WarriorClassCard(),  // 专属卡：铁腕重击
                 WarriorSweep(),      // 专属卡：横扫（AOE）
-                WarriorEnchant(),    // 专属卡：火焰附魔
+                WarriorQuench(),     // 专属卡：淬火（原「火焰附魔」）
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),
@@ -299,16 +415,13 @@ namespace ShuYu
             };
         }
 
-        /// <summary>法师：乘除精准（削大数字）。</summary>
+        /// <summary>法师：冻结控场 + 灼烧/条件牌输出（起手 3×削减、2×重削、冻结、火球术）。</summary>
         public static List<CardData> MageDeck()
         {
             return new List<CardData>
             {
-                MageFire(),     // 专属卡：烈焰
-                MageIce(),      // 专属卡：冰霜
-                MageStorm(),    // 专属卡：解析风暴
-                // 折半（÷2）已从起始卡组移除：起始卡组里这张是没经过削弱的旧版，
-                // 现在全游戏只保留战利品池里削弱过的 RewardHalve（÷2 但下回合能量 -1）。
+                MageFreeze(),   // 专属卡：冻结（冻结+2）
+                MageFireball(), // 专属卡：火球术（-2 并灼烧+2）
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),
                 Make(Operation.Subtract, 1),

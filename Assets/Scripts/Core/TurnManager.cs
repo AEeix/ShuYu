@@ -25,30 +25,43 @@ namespace ShuYu
         int _lastAttackOrder = -1;     // 固定攻击顺序游标：上一个宣言部位的 attackOrder
         bool _isMonster;               // 这场是否有核心/部位（怪物战，胜=打爆核心；否则胜=清空）
         bool _invasion;                // 是否启用数字入侵（普通小怪战的生存压力源）
-        bool _fireEnchanted;           // 下一次攻击是否附带灼烧（火焰附魔）
-        int _enchantBurnLayers;        // 附魔挂上去的灼烧层数（火焰附魔 = 2），命中时叠加到目标格
+        bool _fireEnchanted;           // 下一次攻击是否附带灼烧（淬火）
+        int _enchantBurnLayers;        // 附魔挂上去的灼烧层数（淬火 = 2），命中时叠加到目标格
+        bool _negateNextAttack;        // 全副武装 / 法力护盾：敌人下一次攻击无效化（结算时消耗）
+        int _onHurtAllDelta;           // 愈战愈勇挂起：玩家下次受伤后，所有格 -N（多张叠加）
+        int _onHurtHeal;               // 愈战愈勇挂起：玩家下次受伤后，恢复 N 点生命（多张叠加）
         int _energyDelta;              // 上回合累积的「延迟能量」：下一回合并入能量（正=加费，负=扣费；多张叠加）
         int _drawDelta;                // 上回合累积的「延迟抽牌」：下一回合并入手牌数（正=多抽，负=少抽；多张叠加）
         readonly List<OverflowEvent> _lastOverflow = new List<OverflowEvent>();
         static readonly System.Random _rng = new System.Random();
 
-        /// <summary>核心每回合的喂养量（由 GameManager 按关卡难度传入：前两场 +3 / 之后 +4 / BOSS +5）。</summary>
-        public int coreGrowth;
+        /// <summary>本场战斗怪物每回合的自然成长量（部位/核心各一个值，由 GameManager 按怪物等级传入）。</summary>
+        public GrowthProfile growth;
 
         public TurnManager(ClassData playerClass, BoardState board, PlayerState player, Deck deck, int energyPerTurn,
-            int coreGrowth = GameConfig.CoreGrowth)
+            GrowthProfile? growth = null)
         {
             this.playerClass = playerClass;
             this.board = board;
             this.player = player;
             this.deck = deck;
             this.energyPerTurn = energyPerTurn;
-            this.coreGrowth = coreGrowth;
+            this.growth = growth ?? GrowthTable.Normal;   // 不传就用普通怪档位（?? = 左边为 null 时取右边）
             this.turnNumber = 1;
             this.phase = TurnPhase.PlayerTurn;
             _isMonster = board.numbers.Exists(n => n.kind != NumberKind.Normal);
             _invasion = !_isMonster;   // 入侵只在普通小怪战生效（怪物战靠部位咬人 + 核心爆炸给压力）
             StartTurn();   // 开局先抽满手牌 + 宣言首个攻击部位
+        }
+
+        /// <summary>
+        /// 这个格子每回合会自然成长多少（核心用 <c>growth.Core</c>，其余用 <c>growth.Part</c>）。
+        /// 战斗界面给每格标「+N」时调它，保证「显示的数字」和「实际加的数值」是同一个来源。
+        /// </summary>
+        public int GrowthOf(NumberData n)
+        {
+            if (n == null) return growth.Part;
+            return n.kind == NumberKind.Core ? growth.Core : growth.Part;
         }
 
         /// <summary>回合开始：抽满手牌（并入上回合的延迟抽牌）+ 回满能量（并入延迟能量）+ 灼烧结算 + 宣言攻击部位。</summary>
@@ -65,6 +78,7 @@ namespace ShuYu
             if (player.HasRelic(RelicType.Regen)) player.Heal(1);   // 再生之心：每回合回 1 血
             ApplyDelayedValueChanges();   // 上回合挂的「下个回合该格 -4」等延迟数值，在新回合开始时结算
             ResolveBurn();                // 灼烧：每个玩家回合开始时，带灼烧的格子数值 -（层数）
+            TickFreeze();                 // 冻结：每个玩家回合开始时层数 -1（1 层 = 撑到下一回合开始）
             attacker = ResolveAttacker();
             // 延迟数值/灼烧可能正好打死核心（= 连坐崩掉同组全部部位），也可能打掉盘上最后一个数字。
             // 这里必须重新判一次胜负：否则会出现「所有数字都消失了、但 phase 还是玩家回合」——
@@ -110,17 +124,20 @@ namespace ShuYu
             if (phase != TurnPhase.PlayerTurn || energy < card.cost) return false;
             if (!deck.hand.Contains(card)) return false; // 手牌里没有这张牌
 
-            // 回血卡：无需目标，直接回血
+            // 回血卡：无需目标，直接回血（同样可以带「延迟代价」，如休假：回 15 血但下回合 -2 能量）
             if (card.heal > 0)
             {
                 player.health += card.heal;
                 if (player.health > player.maxHealth) player.health = player.maxHealth;
                 deck.PlayCard(card);
                 energy -= card.cost;
+                if (card.gainEnergy != 0) energy += card.gainEnergy;
+                if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;
+                if (card.nextDrawDelta != 0) _drawDelta += card.nextDrawDelta;
                 return true;
             }
 
-            // 附魔卡：无需目标，给下一次数值攻击挂上灼烧层数（火焰附魔 = 灼烧+2）
+            // 附魔卡：无需目标，给下一次数值攻击挂上灼烧层数（淬火 = 灼烧+2）
             if (card.enchant)
             {
                 _fireEnchanted = true;
@@ -130,13 +147,37 @@ namespace ShuYu
                 return true;
             }
 
+            // 全副武装 / 法力护盾：无需目标 → 让敌人下回合的攻击无效化
+            if (card.negateAttack)
+            {
+                _negateNextAttack = true;
+                if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;
+                deck.PlayCard(card);
+                energy -= card.cost;
+                if (card.gainEnergy != 0) energy += card.gainEnergy;
+                return true;
+            }
+
+            // 无目标卡（纯资源/效果牌，如衍生牌「法力饼干」、战士「愈战愈勇」）：无需选格子
+            if (card.noTarget)
+            {
+                if (card.onHurtAllDelta != 0) _onHurtAllDelta += card.onHurtAllDelta;   // 挂起「受伤后全场 -N」
+                if (card.onHurtHeal != 0) _onHurtHeal += card.onHurtHeal;               // 挂起「受伤后回 N 血」
+                deck.PlayCard(card);
+                energy -= card.cost;
+                if (card.gainEnergy != 0) energy += card.gainEnergy;
+                if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;
+                if (card.nextDrawDelta != 0) _drawDelta += card.nextDrawDelta;
+                return true;
+            }
+
             // 诱导卡：标记一个格子 → 立即获得非自然成长，并跳过下回合自然成长（需目标）
             if (card.induce > 0)
             {
                 var t = board.At(row, col);
                 if (t == null) return false;
                 if (card.noCore && t.kind == NumberKind.Core) return false;
-                t.frozen = true;                  // 下回合自然成长失效
+                if (t.freeze < 1) t.freeze = 1;   // 锁住该格下一个回合（冻结 1 层：不成长、不攻击）
                 // 延迟数值变化（菌种培育：下个回合该格 -4）——同格多张叠加
                 if (card.delayedValueDelta != 0) t.delayedValueDelta += card.delayedValueDelta;
                 GainNonNatural(t, card.induce);   // 立即获得非自然成长（触发毒性标记 / 收割被动）
@@ -175,39 +216,63 @@ namespace ShuYu
                 targets = new List<NumberData> { t };
             }
 
-            // 结算（火焰附魔/烈焰 → 叠加灼烧层数；冰霜 → 冰冻）。
+            // 结算（淬火/火球术 → 叠加灼烧层数；冻结 → 叠加冻结层数）。
             // 注意这里对每个命中格都算一次，所以「全体 -1」这类 AOE 会把灼烧铺到全场。
-            // ⚠️ 灼烧层数是「卡面写多少就是多少」：**不吃任何被动/遗物加成**
-            //    （战士铁腕、铁腕护符的 +1 只加 MathOps 里的减法数值，不会动 burnLayers）。
+            // ⚠️ 灼烧/冻结层数是「卡面写多少就是多少」：**不吃任何被动/遗物加成**
+            //    （战士铁腕、铁腕护符的 +1 只加 MathOps 里的减法数值，不会动这些层数）。
             int burnLayers = (_fireEnchanted ? _enchantBurnLayers : 0) + card.burnLayers;
-            bool freeze = card.freezes;
+            var mainTargets = new List<NumberData>(targets);   // 倍化要「除主目标外」的格子，先留一份
             foreach (var t in targets)
             {
                 if (!board.numbers.Contains(t)) continue; // 已被核心崩解移除
-                ApplyToNumber(t, card, burnLayers, freeze);
+                ApplyToNumber(t, card, burnLayers, card.freezeLayers);
             }
             _fireEnchanted = false;
             _enchantBurnLayers = 0;
 
+            // 倍化：主目标之外的所有格额外 -2（不叠灼烧、不吃被动，卡面写多少就是多少）
+            if (card.otherCellsDelta != 0)
+            {
+                var others = board.numbers.FindAll(n => !mainTargets.Contains(n));
+                foreach (var n in others)
+                {
+                    if (!board.numbers.Contains(n)) continue;
+                    int v = n.value + card.otherCellsDelta;
+                    if (v <= 0) DestroyNumber(n);
+                    else n.value = v > GameConfig.MaxValue ? GameConfig.MaxValue : v;
+                }
+            }
+
             deck.PlayCard(card);   // 出牌 → 弃牌堆
             energy -= card.cost;   // 扣费
+            if (card.gainEnergy != 0) energy += card.gainEnergy;                    // 出牌返能量（倍增/倍化）
             if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;   // 延迟能量：并入下一回合（多张叠加）
             if (card.nextDrawDelta != 0) _drawDelta += card.nextDrawDelta;         // 延迟抽牌：并入下一回合（多张叠加）
             CheckOutcome();
             return true;
         }
 
-        /// <summary>对单个数字结算一次卡牌运算（压到 0 = 消灭；玩家催化推过上限 = 消灭；核心崩 → 崩同组部位；burnLayers → 叠灼烧；freeze → 冰冻）。</summary>
-        void ApplyToNumber(NumberData target, CardData card, int burnLayers, bool freeze)
+        /// <summary>对单个数字结算一次卡牌运算（压到 0 = 消灭；玩家催化推过上限 = 消灭；核心崩 → 崩同组部位；叠灼烧/冻结；preGrowth → 先 +N 非自然成长）。</summary>
+        void ApplyToNumber(NumberData target, CardData card, int burnLayers, int freezeLayers)
         {
+            // 镰刀横扫：主运算之前先给该格 +1（走非自然成长管线，会推进毒性标记/收割被动）
+            if (card.preGrowth > 0)
+            {
+                GainNonNatural(target, card.preGrowth);
+                if (!board.numbers.Contains(target)) return;   // 该格已被消灭（推过上限 / 毒性引爆）
+            }
+
+            // 条件强化：满足条件就用 bonusMagnitude 顶替原本的数值（极寒：目标已冻结 2→4；奥术彗星：九宫格内有同值 2→6）
+            int magnitude = MeetsCondition(card, target) ? card.bonusMagnitude : card.magnitude;
+
             int before = target.value;
-            int next = MathOps.Apply(before, card.op, card.magnitude, playerClass.passive, player.relics);
+            int next = MathOps.Apply(before, card.op, magnitude, playerClass.passive, player.relics);
 
             // 玩家出牌把数字推过上限 → 该格直接消灭（上限只保护 UI，不会砍死本就很高的大数值怪）
             if (next > GameConfig.MaxValue) { DestroyNumber(target); return; }
 
-            if (burnLayers > 0) target.burn += burnLayers;   // 灼烧叠加（火焰附魔 +2 / 烈焰 +1，AOE 时每格都加）
-            if (freeze) target.frozen = true;                // 冰冻
+            if (burnLayers > 0) target.burn += burnLayers;        // 灼烧叠加（淬火 +2 / 火球术 +2，AOE 时每格都加）
+            if (freezeLayers > 0) target.freeze += freezeLayers;  // 冻结叠加（冻结 +2）
 
             // 玩家把数字抬高（加法 / 乘法）在语义上也是「非自然成长」：
             // 走 GainNonNatural 管线，才能推进毒性催化、才能触发收割被动。
@@ -219,6 +284,38 @@ namespace ShuYu
 
             target.value = next;
             if (target.value <= 0) DestroyNumber(target);
+        }
+
+        /// <summary>
+        /// 这张牌的「强化条件」是否满足。满足时用 <see cref="CardData.bonusMagnitude"/> 代替原数值。
+        /// 目前两种：极寒（目标已被冻结）、奥术彗星（九宫格内有相同数字）。
+        /// </summary>
+        bool MeetsCondition(CardData card, NumberData target)
+        {
+            switch (card.condition)
+            {
+                case CardCondition.TargetFrozen:
+                    return target.freeze > 0;
+
+                case CardCondition.SameValueAround:
+                    return HasSameValueAround(target);
+
+                default:
+                    return false;   // CardCondition.None：没有强化，用卡面原数值
+            }
+        }
+
+        /// <summary>目标格周围九宫格（3×3，不含自己）里，是否存在与它数值相同的格子。</summary>
+        bool HasSameValueAround(NumberData target)
+        {
+            foreach (var n in board.numbers)
+            {
+                if (n == target) continue;
+                if (System.Math.Abs(n.row - target.row) > 1) continue;
+                if (System.Math.Abs(n.col - target.col) > 1) continue;
+                if (n.value == target.value) return true;
+            }
+            return false;
         }
 
         /// <summary>消灭一个格子；若是核心，连坐崩掉同组所有部位（多核心逐核坏死）。</summary>
@@ -298,15 +395,78 @@ namespace ShuYu
         }
 
         /// <summary>怪物攻击结算：宣言部位还活着 → 扣「当前值」血（被减 = 减伤，被打掉 = 打断无伤）。</summary>
+        /// <remarks>
+        /// 两种情况这一次攻击直接跳过：①「全副武装 / 法力护盾」的免伤护盾生效；② 攻击部位本身被「冻结」了。
+        /// </remarks>
         public void ResolveAttack()
         {
-            if (attacker != null && board.numbers.Contains(attacker))
-                player.health -= attacker.value;
+            bool negated = _negateNextAttack;
+            _negateNextAttack = false;      // 无论是否真的挨打，护盾都只吃一次
+            LastAttackSkippedByFreeze = false;
+
+            if (negated)
+            {
+                LastAttackNegated = true;
+                return;
+            }
+            LastAttackNegated = false;
+
+            if (attacker == null || !board.numbers.Contains(attacker)) return;
+
+            // 被冻结的攻击部位：这一轮不动手（冻结关键词：跳过该格接下来的 N 个回合，不会攻击）
+            if (attacker.freeze > 0)
+            {
+                LastAttackSkippedByFreeze = true;
+                return;
+            }
+
+            int hpBefore = player.health;
+            player.health -= attacker.value;
+            if (player.health < hpBefore) TriggerOnHurt();   // 真的掉血了 → 结算挂起的「受伤后」效果
         }
 
         /// <summary>
+        /// 结算「受到伤害后」的挂起效果（愈战愈勇）：所有格 -N，并恢复 N 点生命。
+        /// 只在玩家**真的掉血**时触发一次；触发后清空挂起值。
+        /// </summary>
+        void TriggerOnHurt()
+        {
+            if (_onHurtAllDelta == 0 && _onHurtHeal <= 0) return;
+
+            int allDelta = _onHurtAllDelta;
+            int heal = _onHurtHeal;
+            _onHurtAllDelta = 0;
+            _onHurtHeal = 0;
+
+            if (allDelta != 0)
+            {
+                var snapshot = new List<NumberData>(board.numbers);
+                foreach (var n in snapshot)
+                {
+                    if (!board.numbers.Contains(n)) continue;   // 已被核心崩解移除
+                    int v = n.value + allDelta;
+                    if (v <= 0) DestroyNumber(n);
+                    else n.value = v > GameConfig.MaxValue ? GameConfig.MaxValue : v;
+                }
+            }
+            if (heal > 0) player.Heal(heal);
+        }
+
+        /// <summary>是否已挂起「受伤后」效果（UI 可以显示反击状态）。</summary>
+        public bool OnHurtArmed => _onHurtAllDelta != 0 || _onHurtHeal > 0;
+
+        /// <summary>上一次攻击是否被护盾挡下（UI 反馈用）。</summary>
+        public bool LastAttackNegated { get; private set; }
+
+        /// <summary>上一次攻击是否因为「攻击部位被冻结」而跳过（UI 反馈用）。</summary>
+        public bool LastAttackSkippedByFreeze { get; private set; }
+
+        /// <summary>下一回合的攻击是否已被护盾免疫（UI 可以据此显示格挡状态）。</summary>
+        public bool NextAttackNegated => _negateNextAttack;
+
+        /// <summary>
         /// 灼烧结算：**每个玩家回合开始时**，带灼烧的格子数值 -(灼烧层数)；烧到 0 消灭（核心崩 → 崩同组部位）。
-        /// 灼烧层数可叠加（火焰附魔 +2 / 烈焰 +1 / AOE 时每格都加），结算后层数不清空 —— 每回合持续生效。
+        /// 灼烧层数可叠加（淬火 +2 / 烈焰 +1 / AOE 时每格都加），结算后层数不清空 —— 每回合持续生效。
         /// </summary>
         public void ResolveBurn()
         {
@@ -328,14 +488,24 @@ namespace ShuYu
         public int LastBurnTick => _lastBurnTick;
         int _lastBurnTick;
 
-        /// <summary>增殖：普通/部位 +PartGrowth，核心 +coreGrowth（按关卡难度 3/4/5）；冰冻的数字跳过增殖；自然成长推过上限只调回上限，不消灭。</summary>
+        /// <summary>每个玩家回合开始时给所有冻结层数 -1（到 0 就解除冻结）。</summary>
+        void TickFreeze()
+        {
+            foreach (var n in board.numbers)
+                if (n.freeze > 0) n.freeze--;
+        }
+
+        /// <summary>
+        /// 增殖：按本场战斗的成长档位（`growth`）给每格加值——核心用 Core、其他用 Part。
+        /// 被「冻结」的格子跳过这一轮；自然成长推过上限只调回上限，不会消灭（见 §上限规则）。
+        /// </summary>
         public void ResolveGrowth()
         {
             for (int i = 0; i < board.numbers.Count; i++)
             {
                 var n = board.numbers[i];
-                if (n.frozen) { n.frozen = false; continue; }
-                n.value += (n.kind == NumberKind.Core) ? coreGrowth : GameConfig.PartGrowth;
+                if (n.freeze > 0) continue;   // 冻结期间不成长（层数在 StartTurn 里扣）
+                n.value += GrowthOf(n);
                 if (n.value > GameConfig.MaxValue) n.value = GameConfig.MaxValue;   // 自然成长超过上限 → 不消灭，调回上限
             }
         }
