@@ -60,10 +60,16 @@ namespace ShuYu
         }
 
         /// <summary>重置卡组：手牌 + 弃牌堆全部收回抽牌堆并洗牌（每场战斗前调用）。</summary>
+        /// <remarks>
+        /// **衍生牌（<see cref="CardData.isToken"/>，如「法力饼干」）不回收**：它们是这一场临时给的
+        /// （遗物「法力饼干盒」每场战斗塞一张），打完就该消失。
+        /// 以前照单全收 → 上一场没打出的法力饼干被洗进抽牌堆，下一场遗物又塞一张，
+        /// 洗牌抽到旧的那张时手牌里就同时有两张（2026-10-21 用户报的 bug）。
+        /// </remarks>
         public void Reset()
         {
-            drawPile.AddRange(hand);
-            drawPile.AddRange(discardPile);
+            drawPile.AddRange(hand.FindAll(c => !c.isToken));
+            drawPile.AddRange(discardPile.FindAll(c => !c.isToken));
             hand.Clear();
             discardPile.Clear();
             Shuffle(drawPile);

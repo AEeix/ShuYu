@@ -75,7 +75,7 @@ namespace ShuYu
             img.color = GameConfig.CardBase;
             UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
 
-            // 名字（顶部）
+            // 名字（顶部）。与大字相同也照画（费用右边那格小字不能空 —— 用户 2026-10-21 反馈）
             if (!string.IsNullOrEmpty(card.cardName))
             {
                 var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 26,
@@ -86,6 +86,10 @@ namespace ShuYu
             }
 
             var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 64, GameConfig.CardColor(card.op));
+            // 大字可能比一个数值长（「+2 cost」「+1 -5」）→ 自动缩字号防溢出
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 22;
+            label.fontSizeMax = 64;
             UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(10, -160), new Vector2(-10, -52));
 

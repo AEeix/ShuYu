@@ -777,17 +777,26 @@ namespace ShuYu
             _player = new PlayerState(data.health);
             _player.maxHealth = data.maxHealth > 0 ? data.maxHealth : data.health;
             if (data.relics != null) _player.relics = data.relics;
-            _deck = new Deck(data.deck);
+            // 旧版本会把衍生牌（法力饼干）一起存进卡组 → 读档时直接丢掉，
+            // 否则这张牌会永久留在卡组里，再叠上一张每场新塞的，就出现「两张法力饼干」（2026-10-21 报的 bug）
+            var restored = data.deck.FindAll(c => !c.isToken);
+            _deck = new Deck(restored.Count > 0 ? restored : new List<CardData>(_cls.startingDeck));
             _route = data.route;
             ShowRoute();
         }
 
+        /// <summary>卡组里的全部牌（抽牌堆 + 弃牌堆 + 手牌），**不含衍生牌**。</summary>
+        /// <remarks>
+        /// 衍生牌（<see cref="CardData.isToken"/>，如战斗开始临时塞进手牌的「法力饼干」）不属于卡组：
+        /// 算进来的话存档会把它存下去（重开后永久多一张）、火堆「强化卡牌」可能强化到它、
+        /// 商店删牌列表里也会冒出它。卡组查看界面同理不该统计它。
+        /// </remarks>
         List<CardData> FullDeck()
         {
             var list = new List<CardData>();
-            list.AddRange(_deck.drawPile);
-            list.AddRange(_deck.discardPile);
-            list.AddRange(_deck.hand);
+            list.AddRange(_deck.drawPile.FindAll(c => !c.isToken));
+            list.AddRange(_deck.discardPile.FindAll(c => !c.isToken));
+            list.AddRange(_deck.hand.FindAll(c => !c.isToken));
             return list;
         }
 

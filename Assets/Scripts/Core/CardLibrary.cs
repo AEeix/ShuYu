@@ -49,7 +49,9 @@ namespace ShuYu
             c.noTarget = true;
             c.onHurtAllDelta = -1;
             c.onHurtHeal = 2;
-            c.label = "-1";   // 卡面大字显示对全场的削减量
+            // 卡面大字写「蓄力」而不是「-1」：这张牌打出当下不改任何数值，
+            // 写 -1 会让人以为出了牌就立刻削全场（用户 2026-10-21 反馈）。
+            c.label = "蓄力";
             return c;
         }
 
@@ -70,12 +72,12 @@ namespace ShuYu
         }
 
         /// <summary>
-        /// 战士专属卡：全副武装（2 费，使敌人下回合的攻击无效化；你的下一回合多获得 1 点能量）。
+        /// 战士专属卡：全副武装（3 费，使敌人下回合的攻击无效化；你的下一回合多获得 1 点能量）。
         /// 不需要选目标（像附魔/回血卡一样直接生效）。
         /// </summary>
         public static CardData WarriorArmor()
         {
-            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 3,
                 "敌人下回合的攻击无效；你的下一回合多获得 1 点能量", false, "全副武装") { owner = ClassTag.Warrior };
             c.negateAttack = true;
             c.nextEnergyDelta = 1;
@@ -89,7 +91,9 @@ namespace ShuYu
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
                 "给予 冻结+2", false, "冻结") { owner = ClassTag.Mage };
             c.freezeLayers = 2;
-            c.label = "+2";   // 卡面大字显示层数，名字「冻结」走右上角（与诱导/菌种培育一致）
+            // 卡面大字写关键词名「冻结」而不是「+2」：+2 容易被读成「对该格 +2 数值」（用户 2026-10-21 反馈）。
+            // 层数写在描述里（「给予 冻结+2」），卡名与之相同 → 渲染层会省掉重复的小字卡名。
+            c.label = "冻结";
             return c;
         }
 
@@ -143,7 +147,8 @@ namespace ShuYu
             c.noTarget = true;   // 纯资源牌，不需要选格子
             c.gainEnergy = 2;
             c.nextEnergyDelta = -1;
-            c.label = "+2";   // 卡面大字显示获得的能量
+            // 卡面大字写「+2 cost」而不是「+2」：光写 +2 会被当成「给某个数字 +2」（用户 2026-10-21 反馈）。
+            c.label = "+2 cost";
             return c;
         }
 
@@ -168,13 +173,13 @@ namespace ShuYu
         //     return c;
         // }
 
-        /// <summary>收割者专属卡：诱导（1 费，目标格 +2 非自然成长，并给该格 1 层冻结）。</summary>
+        /// <summary>收割者专属卡：诱导（1 费，目标格 +4 非自然成长，并给该格 1 层冻结）。</summary>
         public static CardData ReaperInduce()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
-                "+2\n给予 冻结+1", false, "诱导") { owner = ClassTag.Reaper };
-            c.induce = 2;
-            c.label = "+2";   // 蓝色大字优先显示数值 +2，名字「诱导」走右上角小字
+                "+4\n给予 冻结+1", false, "诱导") { owner = ClassTag.Reaper };
+            c.induce = 4;
+            c.label = "+4";   // 蓝色大字优先显示数值 +4，名字「诱导」走右上角小字
             return c;
         }
 
@@ -188,13 +193,13 @@ namespace ShuYu
             return c;
         }
 
-        /// <summary>收割者专属卡：菌种培育（1 费，+2 非自然成长 + 给该格 1 层冻结 + 下个回合该格 -4）。</summary>
+        /// <summary>收割者专属卡：菌种培育（1 费，+2 非自然成长 + 给该格 1 层冻结 + 下个回合该格 +3）。</summary>
         public static CardData ReaperSeed()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
-                "+2\n给予 冻结+1\n下个回合该格 -4", false, "菌种培育") { owner = ClassTag.Reaper };
+                "+2\n给予 冻结+1\n下个回合该格 +3", false, "菌种培育") { owner = ClassTag.Reaper };
             c.induce = 2;                 // 立即 +2 非自然成长，并把该格下回合的自然成长冻掉
-            c.delayedValueDelta = -4;     // 下个回合开始时该格 -4
+            c.delayedValueDelta = 3;      // 下个回合开始时该格 +3（正 = 加，走同一套延迟数值管线）
             c.label = "+2";               // 卡面大字（不然会显示成「诱导」）
             return c;
         }
@@ -216,6 +221,9 @@ namespace ShuYu
                 "先 +1，再 -5；不能对核心使用", false, "镰刀横扫") { owner = ClassTag.Reaper };
             c.noCore = true;
             c.preGrowth = 1;   // 主运算（-5）之前先给该格 +1 非自然成长
+            // 卡面大字写完整的「+1 -5」：只写 -5 会盖掉那 +1 的非自然成长（会推进毒性标记），
+            // 玩家看到「-5」打出后却发现格子只掉了 4，会当成 bug（用户 2026-10-21 反馈）。
+            c.label = "+1 -5";
             return c;
         }
 
@@ -291,7 +299,7 @@ namespace ShuYu
             {
                 Make(Operation.Subtract, 3),                            // 重击 -3
                 RewardHalve(),                                          // 折半 ÷2，延迟费用
-                Make(Operation.Divide, 3, 2),                           // 分割 ÷3
+                Make(Operation.Divide, 3, 3),                           // 分割 ÷3（3 费；除法的解析被动照旧）
                 RewardDouble(),                                         // 倍增 ×2（0 费，返 1 能量）
                 RewardTriple(),                                         // 倍化 ×3（0 费，其余格 -2，返 1 能量）
                 new CardData(Operation.Subtract, TargetType.Row, 1, 1, null, false, "削减一整行") { owner = ClassTag.All },

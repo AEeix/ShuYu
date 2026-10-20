@@ -344,6 +344,7 @@ namespace ShuYu
             var btn = rt.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
 
+            // 与大字相同也照画（费用右边那格小字不能空 —— 用户 2026-10-21 反馈）
             if (!string.IsNullOrEmpty(card.cardName))
             {
                 var nameText = CreateText("Name", rt, card.DisplayName(), 22,

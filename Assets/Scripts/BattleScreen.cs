@@ -338,10 +338,12 @@ namespace ShuYu
                     new Vector2(2, 2), new Vector2(-2, 2 + cellSize * 0.26f));
             }
 
-            // 延迟数值（菌种培育：下个回合该格 -4）：左上角标出来，让玩家知道还没结算
+            // 延迟数值（菌种培育：下个回合该格 +3）：左上角标出来，让玩家知道还没结算。
+            // 正数要带「+」，否则孤零零一个「3」看着像这一格的成长/层数
             if (data != null && data.delayedValueDelta != 0)
             {
-                var dp = UIFactory.CreateText("Pending", rt, data.delayedValueDelta.ToString(), cellSize * 0.2f,
+                string pendingText = (data.delayedValueDelta > 0 ? "+" : "") + data.delayedValueDelta;
+                var dp = UIFactory.CreateText("Pending", rt, pendingText, cellSize * 0.2f,
                     new Color(1f, 0.55f, 0.15f));
                 var drt = dp.rectTransform;
                 drt.anchorMin = new Vector2(0, 1);
@@ -586,7 +588,7 @@ namespace ShuYu
             img.color = GameConfig.CardBase;
             UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
 
-            // 名字（顶部）
+            // 名字（顶部）。与大字相同也照画（费用右边那格小字不能空 —— 用户 2026-10-21 反馈）
             if (!string.IsNullOrEmpty(card.cardName))
             {
                 var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 30,
@@ -596,8 +598,11 @@ namespace ShuYu
                     new Vector2(10, -50), new Vector2(-10, -12));
             }
 
-            // 大数字（中下部）
+            // 大数字（中下部）。大字可能比一个数值长（「+2 cost」「+1 -5」）→ 自动缩字号防溢出
             var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 56, GameConfig.CardColor(card.op));
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 20;
+            label.fontSizeMax = 56;
             UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(10, -148), new Vector2(-10, -52));
 

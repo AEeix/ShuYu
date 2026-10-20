@@ -206,8 +206,9 @@ namespace ShuYu
             UIFactory.Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1),
                 new Vector2(8, -40), new Vector2(44, -8));
 
-            // 名字（顶部右侧；与大字重复时不显示，避免「诱导 / 诱导」堆叠）
-            if (!string.IsNullOrEmpty(card.cardName) && card.cardName != card.DisplayText())
+            // 名字（顶部右侧）。即使和卡面大字一字不差也要画：
+            // 费用右边那格小字是玩家认牌的位置，空着看着像漏了东西（用户 2026-10-21 反馈「冻结」卡这里空了）
+            if (!string.IsNullOrEmpty(card.cardName))
             {
                 var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 20,
                     card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
@@ -216,9 +217,12 @@ namespace ShuYu
                     new Vector2(46, -38), new Vector2(-8, -8));
             }
 
-            // 大字（运算 + 目标范围）
+            // 大字（运算 + 目标范围）。可能比一个数值长（「+2 cost」「+1 -5」）→ 自动缩字号防溢出
             var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 42, GameConfig.CardColor(card.op));
             label.alignment = TextAlignmentOptions.Center;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 16;
+            label.fontSizeMax = 42;
             UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(8, -96), new Vector2(-8, -46));
 

@@ -47,7 +47,7 @@ namespace ShuYu
                 var btn = cardRt.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
 
-                // 名字（顶部）
+                // 名字（顶部）。与大字相同也照画（费用右边那格小字不能空 —— 用户 2026-10-21 反馈）
                 if (!string.IsNullOrEmpty(card.cardName))
                 {
                     var name = UIFactory.CreateText("Name", cardRt, card.DisplayName(), 30,
@@ -58,6 +58,10 @@ namespace ShuYu
                 }
 
                 var label = UIFactory.CreateText("Label", cardRt, card.DisplayText(), 72, GameConfig.CardColor(card.op));
+                // 大字可能比一个数值长（「+2 cost」「+1 -5」）→ 自动缩字号防溢出
+                label.enableAutoSizing = true;
+                label.fontSizeMin = 24;
+                label.fontSizeMax = 72;
                 UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                     new Vector2(10, -176), new Vector2(-10, -58));
 

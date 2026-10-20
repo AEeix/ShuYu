@@ -63,11 +63,17 @@ namespace ShuYu
             _label = UIFactory.CreateText("Label", Rect, card.DisplayText(), 64,
                 selected ? GameConfig.Background : GameConfig.CardColor(card.op));
             _label.alignment = TextAlignmentOptions.Center;
+            // 大字不一定只有一个数字了（「+2 cost」「+1 -5」「蓄力」），自动缩字号，
+            // 宁可小一点也不让字溢出卡面；文字本来就短时仍是 64 号，视觉不变。
+            _label.enableAutoSizing = true;
+            _label.fontSizeMin = 24;
+            _label.fontSizeMax = 64;
             UIFactory.Place(_label.rectTransform,
                 new Vector2(0, 1), new Vector2(1, 1),
                 new Vector2(10, -150), new Vector2(-10, -55));
 
-            // 卡牌名字（顶部小字）
+            // 卡牌名字（顶部小字）。就算和卡面大字完全一样也照画——
+            // 费用右边那格小字是玩家认牌的位置，空着看着像漏了东西（用户 2026-10-21 反馈）
             if (!string.IsNullOrEmpty(card.cardName))
             {
                 _name = UIFactory.CreateText("Name", Rect, card.DisplayName(), 26,
