@@ -324,6 +324,57 @@ namespace ShuYu
             o.effectDistance = distance;
         }
 
+        /// <summary>
+        /// 画一张可点选的卡面（名字 + 大字 + 描述 + 描边），点击回调 onPick(card)。
+        /// 返回的 RectTransform 已锚定到 (0.5,0.5)，调用方负责设 anchoredPosition。
+        /// 供商店「选择删牌」、火堆「选择强化」等需要玩家自选一张牌的界面复用。
+        /// </summary>
+        public static RectTransform CreateCardButton(Transform parent, string name, CardData card, Vector2 size, UnityAction<CardData> onPick)
+        {
+            var rt = CreateRect(name, parent);
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size;
+
+            var img = rt.gameObject.AddComponent<Image>();
+            img.sprite = Rounded;
+            img.type = Image.Type.Sliced;
+            img.color = GameConfig.CardBase;
+            AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
+
+            var btn = rt.gameObject.AddComponent<Button>();
+            btn.targetGraphic = img;
+
+            if (!string.IsNullOrEmpty(card.cardName))
+            {
+                var nameText = CreateText("Name", rt, card.cardName, 22, GameConfig.SubText);
+                nameText.alignment = TextAlignmentOptions.Center;
+                nameText.enableAutoSizing = true;
+                nameText.fontSizeMin = 12;
+                nameText.fontSizeMax = 22;
+                Place(nameText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(8, -42), new Vector2(-8, -8));
+            }
+
+            var label = CreateText("Label", rt, card.DisplayText(), 56, GameConfig.CardColor(card.op));
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 20;
+            label.fontSizeMax = 56;
+            Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(8, -132), new Vector2(-8, -46));
+
+            if (!string.IsNullOrEmpty(card.description))
+            {
+                var desc = CreateText("Desc", rt, card.description, 20, GameConfig.SubText);
+                desc.alignment = TextAlignmentOptions.Center;
+                desc.enableAutoSizing = true;
+                desc.fontSizeMin = 11;
+                desc.fontSizeMax = 20;
+                Place(desc.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(8, 10), new Vector2(-8, 120));
+            }
+
+            var c = card;
+            if (onPick != null) btn.onClick.AddListener(() => onPick(c));
+            return rt;
+        }
+
         /// <summary>生成一张坐标系纹理（X/Y 轴 + 等距刻度线），像素级绘制，供单个 Image 显示。</summary>
         public static Texture2D CreateAxisTexture(int width, int height, Vector2 origin, float negLen, float tickSpacing, float tickLen, Color color)
         {

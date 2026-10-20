@@ -122,29 +122,28 @@ namespace ShuYu
                 CreateNode(i);
         }
 
-        /// <summary>缩圈：第 3 次移动起出现圈边界线；圈外节点在 CreateNode 里变蓝。</summary>
+        /// <summary>缩圈：第 5 次移动起出现方形安全区边界；区外节点在 CreateNode 里变蓝。</summary>
         void DrawShrink(RouteMap map)
         {
             if (map.movesTaken <= RouteMap.ShrinkStartMoves) return;   // 还没开始缩圈
 
             var boss = map.nodes[map.bossIndex];
             Vector2 center = NodePos(boss.col, boss.row);
-            float radiusPx = map.ShrinkRadius() * Spacing;
-            DrawCircleOutline(center, radiusPx, GameConfig.Hex("#4DA6FF"));
+            float halfSidePx = map.ShrinkRadius() * Spacing;
+            DrawSquareOutline(center, halfSidePx, GameConfig.Hex("#4DA6FF"));
         }
 
-        /// <summary>圈边界线：用 64 段短线拼成一个圆。</summary>
-        void DrawCircleOutline(Vector2 center, float radiusPx, Color color)
+        /// <summary>方形安全区边界：画四条边。</summary>
+        void DrawSquareOutline(Vector2 center, float halfSidePx, Color color)
         {
-            const int segments = 64;
-            for (int i = 0; i < segments; i++)
-            {
-                float a0 = (float)i / segments * Mathf.PI * 2f;
-                float a1 = (float)(i + 1) / segments * Mathf.PI * 2f;
-                Vector2 p0 = center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radiusPx;
-                Vector2 p1 = center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radiusPx;
-                DrawLine(p0, p1, color);
-            }
+            Vector2 tl = center + new Vector2(-halfSidePx, halfSidePx);
+            Vector2 tr = center + new Vector2(halfSidePx, halfSidePx);
+            Vector2 br = center + new Vector2(halfSidePx, -halfSidePx);
+            Vector2 bl = center + new Vector2(-halfSidePx, -halfSidePx);
+            DrawLine(tl, tr, color);
+            DrawLine(tr, br, color);
+            DrawLine(br, bl, color);
+            DrawLine(bl, tl, color);
         }
 
         /// <summary>画边：正交虚线网格 + 走过的实线（金）。</summary>

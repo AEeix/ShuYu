@@ -1,13 +1,16 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.Events;
+using System.Collections.Generic;
 
 namespace ShuYu
 {
-    /// <summary>火堆：休息回血 或 强化一张随机牌，选完继续前进。</summary>
+    /// <summary>火堆：休息回血 或 强化一张自选牌，选完继续前进。</summary>
     public class CampScreen : MonoBehaviour
     {
         RectTransform _root;
+        RectTransform _select;    // 选牌强化界面（进入选择时创建）
         TMP_Text _result;
 
         void Start()
@@ -40,13 +43,83 @@ namespace ShuYu
             HideChoices();
         }
 
+        // ===== 选择强化 =====
+
         void OnUpgrade()
         {
-            var card = GameManager.Instance.UpgradeRandomCard();
-            _result.text = card != null
-                ? "强化了「" + card.DisplayText() + "」"
-                : "没有可强化的牌";
+            var gm = GameManager.Instance;
+            var cards = gm.DeckCards;
+            if (cards.Count == 0)
+            {
+                _result.text = "没有可强化的牌";
+                return;
+            }
             HideChoices();
+            var leave = _root.Find("Leave");
+            if (leave != null) leave.gameObject.SetActive(false);
+            ShowUpgradeSelect(cards);
+        }
+
+        void ShowUpgradeSelect(List<CardData> cards)
+        {
+            _select = UIFactory.CreateRect("UpgradeSelect", _root);
+            UIFactory.Stretch(_select);
+
+            var hint = UIFactory.CreateText("Hint", _select, "选择要强化的牌", 48, GameConfig.Accent);
+            UIFactory.Place(hint.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -170), new Vector2(0, -70));
+
+            BuildCardGrid(_select, cards, OnPickUpgrade);
+
+            var cancel = UIFactory.CreateButton("Cancel", _select, "取消", 36, GameConfig.GridLine, GameConfig.SubText, CancelUpgrade);
+            UIFactory.Place(cancel, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(-120, 30), new Vector2(120, 90));
+        }
+
+        void OnPickUpgrade(CardData card)
+        {
+            var gm = GameManager.Instance;
+            gm.UpgradeCard(card);
+            _result.text = "强化了「" + card.DisplayText() + "」";
+            CloseSelect();
+            var leave = _root.Find("Leave");
+            if (leave != null) leave.gameObject.SetActive(true);
+        }
+
+        void CancelUpgrade()
+        {
+            CloseSelect();
+            var rest = _root.Find("Rest");
+            var upgrade = _root.Find("Upgrade");
+            var leave = _root.Find("Leave");
+            if (rest != null) rest.gameObject.SetActive(true);
+            if (upgrade != null) upgrade.gameObject.SetActive(true);
+            if (leave != null) leave.gameObject.SetActive(true);
+        }
+
+        void CloseSelect()
+        {
+            if (_select != null) { Destroy(_select.gameObject); _select = null; }
+        }
+
+        /// <summary>卡组所有牌按网格铺开（每行 5 张），点选走 onPick。</summary>
+        void BuildCardGrid(RectTransform parent, List<CardData> cards, UnityAction<CardData> onPick)
+        {
+            const float cardW = 190f, cardH = 235f, gap = 26f;
+            const int perRow = 5;
+            int rows = Mathf.CeilToInt(cards.Count / (float)perRow);
+            float totalW = perRow * cardW + (perRow - 1) * gap;
+            float totalH = rows * cardH + (rows - 1) * gap;
+            float startX = -totalW / 2f;
+            float topY = totalH / 2f - 20f;   // 整体略上移，给底部按钮留空间
+
+            for (int i = 0; i < cards.Count; i++)
+            {
+                int r = i / perRow, c = i % perRow;
+                float cx = startX + cardW / 2f + c * (cardW + gap);
+                float cy = topY - cardH / 2f - r * (cardH + gap);
+                var cardRt = UIFactory.CreateCardButton(parent, "Card_" + cards[i].DisplayText(),
+                    cards[i], new Vector2(cardW, cardH), onPick);
+                cardRt.anchoredPosition = new Vector2(cx, cy);
+            }
         }
 
         void HideChoices()

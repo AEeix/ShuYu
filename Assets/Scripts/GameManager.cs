@@ -50,6 +50,8 @@ namespace ShuYu
         public BoardState Board => _turn.board;
         public PlayerState Player => _player;
         public List<CardData> HandCards => _turn.deck.hand;
+        /// <summary>整副牌（抽牌堆 + 弃牌堆 + 手牌的并集），供商店删牌 / 火堆强化选牌用。</summary>
+        public List<CardData> DeckCards => FullDeck();
         public RouteMap Route => _route;
         public ClassData PlayerClass => _cls;
         public TurnPhase Phase => _turn.phase;
@@ -519,7 +521,7 @@ namespace ShuYu
             _route.currentIndex = nodeIndex;
             _route.movesTaken++;   // 移动一次（缩圈依据）
 
-            // 缩圈：第 3 次移动起，安全圈向中心收缩，停在圈外掉血
+            // 缩圈：第 5 次移动起，安全圈向中心收缩，停在圈外掉血
             if (!_route.IsSafe(nodeIndex))
             {
                 _player.health -= RouteMap.ShrinkDamage;
@@ -549,8 +551,8 @@ namespace ShuYu
             }
             if (node.type == NodeType.Mystery)
             {
-                // 问号可能出怪：约 1/3 概率是遭遇战（普通怪）
-                if (UnityEngine.Random.value < 0.35f)
+                // 问号可能出怪：约 1/7 概率是遭遇战（普通怪），其余走剧情事件
+                if (UnityEngine.Random.value < 0.15f)
                 {
                     StartBattle(node, NodeType.Battle);
                     return;
@@ -683,6 +685,18 @@ namespace ShuYu
             var card = all[UnityEngine.Random.Range(0, all.Count)];
             _deck.RemoveCard(card);
             return card;
+        }
+
+        /// <summary>删一张指定牌（删不掉返回 false）。</summary>
+        public bool RemoveCard(CardData card)
+        {
+            return _deck.RemoveCard(card);
+        }
+
+        /// <summary>强化一张指定牌。</summary>
+        public void UpgradeCard(CardData card)
+        {
+            card.Upgrade();
         }
 
         /// <summary>UI 调用：出牌。</summary>

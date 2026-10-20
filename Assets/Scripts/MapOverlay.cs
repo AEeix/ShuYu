@@ -49,29 +49,28 @@ namespace ShuYu
         {
             var map = GameManager.Instance.Route;
 
-            // 缩圈（第 3 步起才出现）
+            // 缩圈（第 5 次移动起才出现）
             if (map.movesTaken > RouteMap.ShrinkStartMoves)
             {
                 var boss = map.nodes[map.bossIndex];
                 Vector2 center = NodePos(boss.col, boss.row);
-                DrawCircle(center, map.ShrinkRadius() * Spacing);
+                DrawSquare(center, map.ShrinkRadius() * Spacing);
             }
 
             for (int i = 0; i < map.nodes.Count; i++)
                 DrawNode(i);
         }
 
-        void DrawCircle(Vector2 center, float radius)
+        void DrawSquare(Vector2 center, float halfSide)
         {
-            const int segments = 64;
-            for (int i = 0; i < segments; i++)
-            {
-                float a0 = (float)i / segments * Mathf.PI * 2f;
-                float a1 = (float)(i + 1) / segments * Mathf.PI * 2f;
-                Vector2 p0 = center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radius;
-                Vector2 p1 = center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radius;
-                DrawLine(p0, p1, GameConfig.Hex("#4DA6FF"));
-            }
+            Vector2 tl = center + new Vector2(-halfSide, halfSide);
+            Vector2 tr = center + new Vector2(halfSide, halfSide);
+            Vector2 br = center + new Vector2(halfSide, -halfSide);
+            Vector2 bl = center + new Vector2(-halfSide, -halfSide);
+            DrawLine(tl, tr, GameConfig.Hex("#4DA6FF"));
+            DrawLine(tr, br, GameConfig.Hex("#4DA6FF"));
+            DrawLine(br, bl, GameConfig.Hex("#4DA6FF"));
+            DrawLine(bl, tl, GameConfig.Hex("#4DA6FF"));
         }
 
         void DrawLine(Vector2 a, Vector2 b, Color color)

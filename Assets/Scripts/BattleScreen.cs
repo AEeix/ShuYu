@@ -760,6 +760,7 @@ namespace ShuYu
             const float dur = 0.7f;
             while (time < dur)
             {
+                if (rt == null) yield break;   // 战斗结束切屏时对象已被销毁
                 time += Time.deltaTime;
                 float k = time / dur;
                 rt.anchoredPosition = new Vector2(0f, 20f + 44f * k);
@@ -779,6 +780,7 @@ namespace ShuYu
             const float dur = 0.25f;
             while (t < dur)
             {
+                if (rt == null) yield break;
                 t += Time.deltaTime;
                 float k = t / dur;
                 rt.localScale = Vector3.one * (1f + 0.4f * Mathf.Sin(k * Mathf.PI));
@@ -826,6 +828,7 @@ namespace ShuYu
             const float dur = 0.35f;
             while (t < dur)
             {
+                if (flash == null) yield break;
                 t += Time.deltaTime;
                 Color c = flash.color; c.a = 0.3f * (1f - t / dur); flash.color = c;
                 yield return null;
@@ -855,6 +858,7 @@ namespace ShuYu
             const float dur = 0.35f;
             while (t < dur)
             {
+                if (parts[0] == null) yield break;
                 t += Time.deltaTime;
                 float k = t / dur;
                 for (int i = 0; i < n; i++)
@@ -879,6 +883,7 @@ namespace ShuYu
             const float dur = 0.15f;
             while (t < dur)
             {
+                if (flash == null) yield break;
                 t += Time.deltaTime;
                 Color c = flash.color; c.a = 0.5f * (1f - t / dur); flash.color = c;
                 yield return null;
@@ -893,6 +898,7 @@ namespace ShuYu
             const float dur = 0.2f;
             while (t < dur)
             {
+                if (_root == null) yield break;
                 t += Time.deltaTime;
                 float amp = 6f * (1f - t / dur);
                 _root.anchoredPosition = new Vector2(Random.value * 2f - 1f, Random.value * 2f - 1f) * amp;
@@ -965,6 +971,7 @@ namespace ShuYu
             const float dur = 0.5f;
             while (t < dur)
             {
+                if (flash == null) yield break;
                 t += Time.deltaTime;
                 float k = t / dur;
                 frt.sizeDelta = new Vector2(40f + 110f * k, 40f + 110f * k);
@@ -991,6 +998,7 @@ namespace ShuYu
             const float dur = 0.35f;
             while (t < dur)
             {
+                if (_root == null) yield break;
                 t += Time.deltaTime;
                 float amp = 14f * (1f - t / dur);
                 _root.anchoredPosition = new Vector2(Random.value * 2f - 1f, Random.value * 2f - 1f) * amp;
@@ -1012,12 +1020,13 @@ namespace ShuYu
             rt.position = origin;
             dmg.alignment = TextAlignmentOptions.Center;
 
-            Vector3 target = _hpText.rectTransform.position;
+            Vector3 target = _hpText != null ? _hpText.rectTransform.position : rt.position;
             float t = 0f;
             const float dur = 0.6f;
             Vector3 from = rt.position;
             while (t < dur)
             {
+                if (rt == null) yield break;   // 战斗结束切屏时飘字对象已被销毁
                 t += Time.deltaTime;
                 float k = t / dur;
                 rt.position = Vector3.Lerp(from, target, k);
@@ -1026,7 +1035,7 @@ namespace ShuYu
                 dmg.color = c;
                 yield return null;
             }
-            Destroy(dmg.gameObject);
+            if (dmg != null) Destroy(dmg.gameObject);
         }
 
         /// <summary>血条闪红：受到溢出伤害时血条短暂变红再还原。</summary>
@@ -1038,11 +1047,12 @@ namespace ShuYu
             const float dur = 0.35f;
             while (t < dur)
             {
+                if (text == null) yield break;
                 t += Time.deltaTime;
                 text.color = Color.Lerp(GameConfig.Hex("#FF2222"), baseColor, t / dur);
                 yield return null;
             }
-            text.color = baseColor;
+            if (text != null) text.color = baseColor;
         }
 
         void OnCardClicked(CardData card)

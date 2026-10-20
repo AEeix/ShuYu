@@ -24,16 +24,16 @@ namespace ShuYu
 
     /// <summary>
     /// 网格路线图（黑夜君临式）：整屏网格铺满，节点在交汇处，随机边缘起点，中心 BOSS。
-    /// 每次移动一格（8 方向），第 3 次移动起安全圈向中心收缩，圈外掉血。
+    /// 每次移动一格（8 方向），第 5 次移动起安全区（正方形）向中心收缩，区外掉血。
     /// </summary>
     [Serializable]
     public class RouteMap
     {
         public const int GridCols = 8;           // 网格列数
         public const int GridRows = 6;           // 网格行数
-        public const float InitialRadius = 5f;   // 初始安全半径（覆盖全图）
+        public const float InitialRadius = 4f;   // 初始安全区半边长（正方形，覆盖全图）
         public const float ShrinkPerMove = 1f;   // 每步收缩量
-        public const int ShrinkStartMoves = 2;   // 第 3 次移动（movesTaken=3）起开始缩圈
+        public const int ShrinkStartMoves = 4;   // 第 5 次移动（movesTaken=5）起开始缩圈
         public const int ShrinkDamage = 5;       // 圈外每回合掉血
 
         static readonly System.Random _rng = new System.Random();
@@ -104,20 +104,20 @@ namespace ShuYu
             return result;
         }
 
-        /// <summary>当前安全半径：第 3 次移动起每步收缩 1。</summary>
+        /// <summary>当前安全区半边长（正方形）：第 5 次移动起每步收缩 1。</summary>
         public float ShrinkRadius()
         {
             int step = Math.Max(0, movesTaken - ShrinkStartMoves);
             return Math.Max(0f, InitialRadius - step * ShrinkPerMove);
         }
 
-        /// <summary>节点是否在安全圈内（到 BOSS 的欧氏距离 ≤ 半径）。</summary>
+        /// <summary>节点是否在安全区（正方形）内：到 BOSS 的行、列距离各自 ≤ 半边长。</summary>
         public bool IsSafe(int index)
         {
             var b = nodes[bossIndex];
             var n = nodes[index];
-            float dc = n.col - b.col, dr = n.row - b.row;
-            return Math.Sqrt(dc * dc + dr * dr) <= ShrinkRadius();
+            float dc = Math.Abs(n.col - b.col), dr = Math.Abs(n.row - b.row);
+            return Math.Max(dc, dr) <= ShrinkRadius();
         }
     }
 }
