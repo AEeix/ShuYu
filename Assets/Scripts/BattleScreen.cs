@@ -47,6 +47,7 @@ namespace ShuYu
             BuildHand(_root);
             BuildClassInfo(_root);
             BuildMonsterView(_root);
+            BuildDeckButton(_root);
             BuildOverlay(_root);
         }
 
@@ -489,6 +490,15 @@ namespace ShuYu
             return null;
         }
 
+        /// <summary>右上角「我的卡组」按钮：查看整副牌（抽牌堆 + 弃牌堆 + 手牌）。</summary>
+        void BuildDeckButton(Transform parent)
+        {
+            var gm = GameManager.Instance;
+            var btn = UIFactory.CreateButton("DeckBtn", parent, "我的卡组 " + gm.DeckCards.Count, 36,
+                GameConfig.CardBase, GameConfig.SubText, () => ShowPileViewer(gm.DeckCards, "我的卡组"));
+            UIFactory.Place(btn, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-280, -140), new Vector2(-60, -70));
+        }
+
         /// <summary>抽牌堆/弃牌堆查看：全屏变暗遮罩 + 卡牌网格居中铺满全屏（杀戮尖塔式）。</summary>
         void ShowPileViewer(List<CardData> pile, string title)
         {
@@ -554,7 +564,8 @@ namespace ShuYu
             // 名字（顶部）
             if (!string.IsNullOrEmpty(card.cardName))
             {
-                var name = UIFactory.CreateText("Name", rt, card.cardName, 30, GameConfig.SubText);
+                var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 30,
+                    card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
                 name.alignment = TextAlignmentOptions.Center;
                 UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                     new Vector2(10, -50), new Vector2(-10, -12));
@@ -1096,7 +1107,7 @@ namespace ShuYu
             var targetData = gm.Board.At(row, col);
             if (_selectedCard.noCore && targetData != null && targetData.kind == NumberKind.Core)
             {
-                if (_hintText != null) _hintText.text = (_selectedCard.cardName ?? "这张牌") + " 不能对核心使用";
+                if (_hintText != null) _hintText.text = _selectedCard.DisplayName() + " 不能对核心使用";
                 return;
             }
 

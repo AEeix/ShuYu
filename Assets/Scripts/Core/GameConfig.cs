@@ -34,6 +34,7 @@ namespace ShuYu
         public static readonly Color CardBlue = Hex("#4DA6FF");    // 减法卡
         public static readonly Color CardOrange = Hex("#FF8C42");  // 加法卡
         public static readonly Color CardGold = Hex("#FFD54F");    // 乘除卡
+        public static readonly Color UpgradedName = Hex("#3DE0A0"); // 强化卡名（亮绿，差分色）
         public static readonly Color CardBase = Hex("#161B26");    // 卡牌底
         public static readonly Color SubText = Hex("#8892A6");     // 次要文字
         public static readonly Color MonsterFill = Hex("#1E2836"); // 怪物部位暗块填充（略亮于背景，衬托发光轮廓）

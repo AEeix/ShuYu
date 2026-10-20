@@ -12,6 +12,7 @@ namespace ShuYu
         RectTransform _root;
         RectTransform _select;    // 选牌强化界面（进入选择时创建）
         TMP_Text _result;
+        TMP_Text _hpText;
 
         void Start()
         {
@@ -22,11 +23,14 @@ namespace ShuYu
             var title = UIFactory.CreateText("Title", _root, "火 堆", 72, GameConfig.Accent);
             UIFactory.Place(title.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -190), new Vector2(0, -70));
 
+            _hpText = UIFactory.CreateText("HP", _root, "HP：" + GameManager.Instance.Player.health, 44, GameConfig.Accent);
+            UIFactory.Place(_hpText.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-300, -130), new Vector2(-60, -80));
+
             _result = UIFactory.CreateText("Result", _root, "", 40, GameConfig.SubText);
             _result.alignment = TextAlignmentOptions.Center;
             UIFactory.Place(_result.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -40), new Vector2(0, 60));
 
-            var rest = UIFactory.CreateButton("Rest", _root, "休息（回 5 血）", 44, GameConfig.CardGold, GameConfig.Background, OnRest);
+            var rest = UIFactory.CreateButton("Rest", _root, "休息（回复 30% 生命）", 44, GameConfig.CardGold, GameConfig.Background, OnRest);
             UIFactory.Place(rest, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-300, -200), new Vector2(-30, -100));
 
             var upgrade = UIFactory.CreateButton("Upgrade", _root, "强化一张牌", 44, GameConfig.CardBase, GameConfig.Accent, OnUpgrade);
@@ -38,9 +42,17 @@ namespace ShuYu
 
         void OnRest()
         {
-            GameManager.Instance.Heal(5);
-            _result.text = "休息好了，回复 5 点生命";
+            var gm = GameManager.Instance;
+            int amount = Mathf.CeilToInt(gm.Player.maxHealth * 0.3f);
+            gm.Heal(amount);
+            _result.text = "休息好了，回复 " + amount + " 点生命";
+            RefreshHP();
             HideChoices();
+        }
+
+        void RefreshHP()
+        {
+            if (_hpText != null) _hpText.text = "HP：" + GameManager.Instance.Player.health;
         }
 
         // ===== 选择强化 =====

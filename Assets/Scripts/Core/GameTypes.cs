@@ -90,6 +90,7 @@ namespace ShuYu
         public bool noCore;           // 不能对核心使用（镰刀横扫）
         public string label;          // 卡面大字覆盖（为空则按运算/目标自动生成，如「+2」「标记」）
         public ClassTag owner;        // 职业成员标记：标了某职业 → 进该职业的牌池 & 图鉴职业段（None = 全职业牌）
+        public bool upgraded;         // 是否已被强化过（火堆强化 → 名字后加「+」并换色）
 
         public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false, string cardName = null)
         {
@@ -107,6 +108,12 @@ namespace ShuYu
                 this.cardName = idx > 0 ? description.Substring(0, idx) : description;
             }
             else this.cardName = null;
+        }
+
+        /// <summary>卡牌显示名：强化过的牌在名字后加「+」，供 UI 显示强化差分。</summary>
+        public string DisplayName()
+        {
+            return (string.IsNullOrEmpty(cardName) ? "" : cardName) + (upgraded ? "+" : "");
         }
 
         public string DisplayText()
@@ -138,6 +145,7 @@ namespace ShuYu
         /// <summary>强化卡牌：回血牌 +2 治疗；诱导牌 +1 诱导量；毒性催化 +3 伤害；有数值的牌数值 +1；0 数值牌（附魔/冰冻）降 1 费。</summary>
         public void Upgrade()
         {
+            upgraded = true;
             if (heal > 0) { heal += 2; return; }
             if (induce > 0) { induce += 1; return; }
             if (toxinDamage > 0) { toxinDamage += 3; return; }

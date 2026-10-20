@@ -44,11 +44,11 @@ namespace ShuYu
             return new CardData(Operation.Subtract, TargetType.Row, 2, 2, "削减一整行数字", false, "横扫") { owner = ClassTag.Warrior };
         }
 
-        /// <summary>战士专属卡：火焰附魔（2 费，下一次数值攻击命中时给格子叠加 2 层灼烧）。</summary>
+        /// <summary>战士专属卡：火焰附魔（1 费，下一次数值攻击命中时给格子叠加 2 层灼烧）。</summary>
         /// <remarks>灼烧层数是固定值：不吃铁腕、铁腕护符等任何增幅（卡面写 2 就是 2）。</remarks>
         public static CardData WarriorEnchant()
         {
-            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 1,
                 "下一次数值攻击附带 灼烧+2", true, "火焰附魔") { owner = ClassTag.Warrior };
             c.burnLayers = 2;   // 火焰附魔的灼烧层数 = 2
             return c;

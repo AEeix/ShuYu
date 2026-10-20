@@ -195,7 +195,8 @@ namespace ShuYu
             // 名字（顶部右侧；与大字重复时不显示，避免「诱导 / 诱导」堆叠）
             if (!string.IsNullOrEmpty(card.cardName) && card.cardName != card.DisplayText())
             {
-                var name = UIFactory.CreateText("Name", rt, card.cardName, 20, GameConfig.SubText);
+                var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 20,
+                    card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
                 name.alignment = TextAlignmentOptions.Center;
                 UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                     new Vector2(46, -38), new Vector2(-8, -8));

@@ -240,7 +240,7 @@ namespace ShuYu
             ShowTitle();
         }
 
-        /// <summary>建暂停菜单（继续 / 回到标题 / 退出游戏），懒加载。</summary>
+        /// <summary>建暂停菜单（继续 / 设置 / 回到标题 / 退出游戏），懒加载。</summary>
         void BuildPauseMenu()
         {
             var canvas = UIFactory.EnsureCanvas();
@@ -254,30 +254,36 @@ namespace ShuYu
             var panel = UIFactory.CreatePanel("Panel", root, GameConfig.CardBase);
             UIFactory.Place(panel.rectTransform,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-300, -260), new Vector2(300, 260));
+                new Vector2(-300, -300), new Vector2(300, 300));
 
             var title = UIFactory.CreateText("PauseTitle", panel.transform, "暂 停", 60, GameConfig.Accent);
             UIFactory.Place(title.rectTransform,
                 new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(0, -100), new Vector2(0, -20));
+                new Vector2(0, -110), new Vector2(0, -20));
 
             var resume = UIFactory.CreateButton("Resume", panel.transform, "继续游戏", 48,
                 GameConfig.Accent, GameConfig.Background, TogglePause);
             UIFactory.Place(resume,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-180, 40), new Vector2(-20, 120));
+                new Vector2(-180, 110), new Vector2(180, 190));
+
+            var settings = UIFactory.CreateButton("Settings", panel.transform, "设 置", 40,
+                GameConfig.CardBase, GameConfig.SubText, OpenSettingsFromPause);
+            UIFactory.Place(settings,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(-180, 10), new Vector2(180, 90));
 
             var toTitle = UIFactory.CreateButton("ToTitle", panel.transform, "回到标题", 40,
                 GameConfig.CardBase, GameConfig.SubText, BackToTitle);
             UIFactory.Place(toTitle,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-180, -40), new Vector2(-20, 40));
+                new Vector2(-180, -90), new Vector2(180, -10));
 
             var quit = UIFactory.CreateButton("Quit", panel.transform, "退出游戏", 40,
                 GameConfig.CardBase, GameConfig.SubText, QuitGame);
             UIFactory.Place(quit,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-180, -120), new Vector2(-20, -40));
+                new Vector2(-180, -190), new Vector2(180, -110));
 
             _pauseMenu.SetActive(false);
         }
@@ -352,6 +358,13 @@ namespace ShuYu
 
         void ToggleFullscreen() { Screen.fullScreen = !Screen.fullScreen; if (_fsLabel != null) _fsLabel.text = FsText(); }
 
+        /// <summary>从暂停菜单打开设置（隐藏暂停面板，返回时恢复）。</summary>
+        void OpenSettingsFromPause()
+        {
+            if (_pauseMenu != null) _pauseMenu.SetActive(false);
+            ShowSettings();
+        }
+
         void HideSettings()
         {
             if (_settingsMenu != null) { Destroy(_settingsMenu); _settingsMenu = null; }
@@ -359,6 +372,9 @@ namespace ShuYu
             _musicLabel = null;
             _sfxLabel = null;
             _fsLabel = null;
+            // 从暂停菜单进入的设置，返回时回到暂停菜单（继续暂停）
+            if (_pauseMenu != null && Time.timeScale == 0f)
+                _pauseMenu.SetActive(true);
         }
 
         /// <summary>创建持久世界：深色背景 + 坐标轴（一直保留到进战斗）。</summary>

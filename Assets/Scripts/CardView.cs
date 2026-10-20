@@ -70,8 +70,8 @@ namespace ShuYu
             // 卡牌名字（顶部小字）
             if (!string.IsNullOrEmpty(card.cardName))
             {
-                _name = UIFactory.CreateText("Name", Rect, card.cardName, 26,
-                    selected ? GameConfig.Background : GameConfig.SubText);
+                _name = UIFactory.CreateText("Name", Rect, card.DisplayName(), 26,
+                    selected ? GameConfig.Background : (card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText));
                 _name.alignment = TextAlignmentOptions.Center;
                 UIFactory.Place(_name.rectTransform,
                     new Vector2(0, 1), new Vector2(1, 1),
@@ -107,7 +107,7 @@ namespace ShuYu
             _bg.color = selected ? GameConfig.Accent : GameConfig.CardBase;
             _label.color = selected ? GameConfig.Background : GameConfig.CardColor(Card.op);
             if (_desc != null) _desc.color = selected ? GameConfig.Background : GameConfig.SubText;
-            if (_name != null) _name.color = selected ? GameConfig.Background : GameConfig.SubText;
+            if (_name != null) _name.color = selected ? GameConfig.Background : (Card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
             if (changed && selected) StartCoroutine(Pop());
         }
 

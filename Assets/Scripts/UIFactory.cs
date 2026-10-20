@@ -346,7 +346,8 @@ namespace ShuYu
 
             if (!string.IsNullOrEmpty(card.cardName))
             {
-                var nameText = CreateText("Name", rt, card.cardName, 22, GameConfig.SubText);
+                var nameText = CreateText("Name", rt, card.DisplayName(), 22,
+                    card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
                 nameText.alignment = TextAlignmentOptions.Center;
                 nameText.enableAutoSizing = true;
                 nameText.fontSizeMin = 12;

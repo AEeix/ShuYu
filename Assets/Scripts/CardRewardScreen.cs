@@ -50,7 +50,8 @@ namespace ShuYu
                 // 名字（顶部）
                 if (!string.IsNullOrEmpty(card.cardName))
                 {
-                    var name = UIFactory.CreateText("Name", cardRt, card.cardName, 30, GameConfig.SubText);
+                    var name = UIFactory.CreateText("Name", cardRt, card.DisplayName(), 30,
+                        card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
                     name.alignment = TextAlignmentOptions.Center;
                     UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
                         new Vector2(10, -56), new Vector2(-10, -14));
