@@ -27,7 +27,7 @@ namespace ShuYu
         bool _invasion;                // 是否启用数字入侵（普通小怪战的生存压力源）
         bool _fireEnchanted;           // 下一次攻击是否附带灼烧（淬火）
         int _enchantBurnLayers;        // 附魔挂上去的灼烧层数（淬火 = 2），命中时叠加到目标格
-        bool _negateNextAttack;        // 全副武装 / 法力护盾：敌人下一次攻击无效化（结算时消耗）
+        int _block;                    // 自我buff：格挡层数（法力护盾 1 层 / 全副武装 2 层 / 自动防护矩阵开局 1 层；每抵挡一次有效攻击 -1）
         int _onHurtAllDelta;           // 愈战愈勇挂起：玩家下次受伤后，所有格 -N（多张叠加）
         int _onHurtHeal;               // 愈战愈勇挂起：玩家下次受伤后，恢复 N 点生命（多张叠加）
         int _energyDelta;              // 上回合累积的「延迟能量」：下一回合并入能量（正=加费，负=扣费；多张叠加）
@@ -51,6 +51,8 @@ namespace ShuYu
             this.phase = TurnPhase.PlayerTurn;
             _isMonster = board.numbers.Exists(n => n.kind != NumberKind.Normal);
             _invasion = !_isMonster;   // 入侵只在普通小怪战生效（怪物战靠部位咬人 + 核心爆炸给压力）
+            // 遗物「自动防护矩阵」：每场战斗开始时送 1 层格挡（自我buff）
+            if (player.HasRelic(RelicType.AutoDefense)) _block += 1;
             StartTurn();   // 开局先抽满手牌 + 宣言首个攻击部位
         }
 
@@ -147,10 +149,10 @@ namespace ShuYu
                 return true;
             }
 
-            // 全副武装 / 法力护盾：无需目标 → 让敌人下回合的攻击无效化
-            if (card.negateAttack)
+            // 自我buff 卡（法力护盾 / 全副武装）：无需目标 → 获得 N 层「格挡」
+            if (card.grantBlock > 0)
             {
-                _negateNextAttack = true;
+                _block += card.grantBlock;
                 if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;
                 deck.PlayCard(card);
                 energy -= card.cost;
@@ -220,7 +222,8 @@ namespace ShuYu
             // 注意这里对每个命中格都算一次，所以「全体 -1」这类 AOE 会把灼烧铺到全场。
             // ⚠️ 灼烧/冻结层数是「卡面写多少就是多少」：**不吃任何被动/遗物加成**
             //    （战士铁腕、铁腕护符的 +1 只加 MathOps 里的减法数值，不会动这些层数）。
-            int burnLayers = (_fireEnchanted ? _enchantBurnLayers : 0) + card.burnLayers;
+            int burnLayers = (_fireEnchanted ? _enchantBurnLayers : 0) + card.EffectiveBurn;
+            //   ↑ EffectiveBurn = 卡面基础层数 + 本局永久成长（成长牌「薪火」靠它变强；普通牌两者相等）
             var mainTargets = new List<NumberData>(targets);   // 倍化要「除主目标外」的格子，先留一份
             foreach (var t in targets)
             {
@@ -245,11 +248,30 @@ namespace ShuYu
 
             deck.PlayCard(card);   // 出牌 → 弃牌堆
             energy -= card.cost;   // 扣费
+            NoteCardUse(card);     // 成长牌（薪火）：记录本场使用次数，用满就永久 +1
             if (card.gainEnergy != 0) energy += card.gainEnergy;                    // 出牌返能量（倍增/倍化）
             if (card.nextEnergyDelta != 0) _energyDelta += card.nextEnergyDelta;   // 延迟能量：并入下一回合（多张叠加）
             if (card.nextDrawDelta != 0) _drawDelta += card.nextDrawDelta;         // 延迟抽牌：并入下一回合（多张叠加）
             CheckOutcome();
             return true;
+        }
+
+        /// <summary>
+        /// 记录「本场战斗已使用次数」，并处理成长牌：薪火一场内用满 3 次 → 本局永久 +1 层（每场战斗最多触发一次）。
+        /// 计数存在卡牌实例自己身上（随卡走），场次清零由 <see cref="Deck.Reset"/> 负责。
+        /// </summary>
+        void NoteCardUse(CardData card)
+        {
+            if (card.growth == CardGrowth.None || card.usesThisBattle >= CardData.GrowthUsesRequired) return;
+
+            card.usesThisBattle++;
+            if (card.usesThisBattle >= CardData.GrowthUsesRequired) card.permGrowth++;
+        }
+
+        /// <summary>直接给玩家加「格挡」层数（遗物/事件给的自我buff，例如遗物祭坛的「下一场战斗获得 1 层」）。</summary>
+        public void GrantBlock(int layers)
+        {
+            if (layers > 0) _block += layers;
         }
 
         /// <summary>对单个数字结算一次卡牌运算（压到 0 = 消灭；玩家催化推过上限 = 消灭；核心崩 → 崩同组部位；叠灼烧/冻结；preGrowth → 先 +N 非自然成长）。</summary>
@@ -342,8 +364,9 @@ namespace ShuYu
                 ResolveToxinMarks(n, amount);
             }
 
-            // 收割被动：怪物获得非自然成长 → 所有格子 -1
-            if (playerClass.passive == PassiveType.Harvest) HarvestAllCells();
+            // 收割（收割者被动）= 初始遗物「小镰刀」：怪物获得非自然成长 → 所有格子 -1。
+            // 被动和遗物是同一个东西，所以用 OR 判定，绝不叠加两次（用户 2026-10-21 明确）
+            if (player.HasRelic(RelicType.SmallScythe) || playerClass.passive == PassiveType.Harvest) HarvestAllCells();
         }
 
         /// <summary>
@@ -396,27 +419,30 @@ namespace ShuYu
 
         /// <summary>怪物攻击结算：宣言部位还活着 → 扣「当前值」血（被减 = 减伤，被打掉 = 打断无伤）。</summary>
         /// <remarks>
-        /// 两种情况这一次攻击直接跳过：①「全副武装 / 法力护盾」的免伤护盾生效；② 攻击部位本身被「冻结」了。
+        /// 优先级（2026-10-21 用户确认）：
+        /// ① 攻击部位被「冻结」：这一刀根本没挥出来，**不消耗格挡**（也不算「有效攻击」）；
+        /// ② 「格挡」层数 &gt; 0：吃掉这一刀并 -1 层；
+        /// ③ 否则正常扣血。
         /// </remarks>
         public void ResolveAttack()
         {
-            bool negated = _negateNextAttack;
-            _negateNextAttack = false;      // 无论是否真的挨打，护盾都只吃一次
             LastAttackSkippedByFreeze = false;
-
-            if (negated)
-            {
-                LastAttackNegated = true;
-                return;
-            }
             LastAttackNegated = false;
 
             if (attacker == null || !board.numbers.Contains(attacker)) return;
 
-            // 被冻结的攻击部位：这一轮不动手（冻结关键词：跳过该格接下来的 N 个回合，不会攻击）
+            // ① 被冻结的攻击部位：这一轮不动手（冻结关键词：跳过该格接下来的 N 个回合，不会攻击）
             if (attacker.freeze > 0)
             {
                 LastAttackSkippedByFreeze = true;
+                return;
+            }
+
+            // ② 自我buff「格挡」：吃掉这次攻击，层数 -1（多张护盾叠起来就能连挡好几刀）
+            if (_block > 0)
+            {
+                _block--;
+                LastAttackNegated = true;
                 return;
             }
 
@@ -455,14 +481,17 @@ namespace ShuYu
         /// <summary>是否已挂起「受伤后」效果（UI 可以显示反击状态）。</summary>
         public bool OnHurtArmed => _onHurtAllDelta != 0 || _onHurtHeal > 0;
 
-        /// <summary>上一次攻击是否被护盾挡下（UI 反馈用）。</summary>
+        /// <summary>上一次攻击是否被「格挡」挡下（UI 反馈用）。</summary>
         public bool LastAttackNegated { get; private set; }
 
         /// <summary>上一次攻击是否因为「攻击部位被冻结」而跳过（UI 反馈用）。</summary>
         public bool LastAttackSkippedByFreeze { get; private set; }
 
-        /// <summary>下一回合的攻击是否已被护盾免疫（UI 可以据此显示格挡状态）。</summary>
-        public bool NextAttackNegated => _negateNextAttack;
+        /// <summary>
+        /// 玩家当前的「格挡」层数（自我buff）。UI 拿它显示「格挡 xN」。
+        /// 层数不会在回合结束时清空——挡到攻击才减，所以叠起来的护盾可以留到后面几回合用。
+        /// </summary>
+        public int BlockLayers => _block;
 
         /// <summary>
         /// 灼烧结算：**每个玩家回合开始时**，带灼烧的格子数值 -(灼烧层数)；烧到 0 消灭（核心崩 → 崩同组部位）。
@@ -570,6 +599,19 @@ namespace ShuYu
             {
                 phase = TurnPhase.Won; // 小怪战：清空棋盘即胜
             }
+
+            // 遗物「鲜血宝石」：赢得一场战斗后回 4 血。
+            // CheckOutcome 会被反复调用（每次出牌 / 每次结算），所以必须用 _winRewardApplied 只结算一次
+            if (phase == TurnPhase.Won && !_winRewardApplied)
+            {
+                _winRewardApplied = true;
+                if (player.HasRelic(RelicType.BloodGem)) player.Heal(VictoryHealAmount);
+            }
         }
+
+        /// <summary>「鲜血宝石」每场战斗胜利回的血量。</summary>
+        public const int VictoryHealAmount = 4;
+
+        bool _winRewardApplied;   // 胜利奖励（鲜血宝石）是否已结算，防止 CheckOutcome 反复调用导致反复回血
     }
 }

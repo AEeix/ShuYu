@@ -85,9 +85,10 @@ namespace ShuYu
             }
 
             // 描述（职业专属卡有，基础卡没有）。字号自动缩放，长描述（如菌种培育三行）不会被截断。
-            if (!string.IsNullOrEmpty(card.description))
+            // 走 DescriptionText()：成长牌（薪火）的层数/已用次数是现算的，不能读死字段 description
+            if (!string.IsNullOrEmpty(card.DescriptionText()))
             {
-                _desc = UIFactory.CreateText("Desc", Rect, KeywordCatalog.Highlight(card.description), 28,
+                _desc = UIFactory.CreateText("Desc", Rect, KeywordCatalog.Highlight(card.DescriptionText()), 28,
                     selected ? GameConfig.Background : GameConfig.SubText);
                 _desc.alignment = TextAlignmentOptions.Center;
                 _desc.enableAutoSizing = true;

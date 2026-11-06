@@ -72,6 +72,9 @@ namespace ShuYu
             drawPile.AddRange(discardPile.FindAll(c => !c.isToken));
             hand.Clear();
             discardPile.Clear();
+            // 新的一场战斗：成长牌（薪火）的「本场已使用次数」清零；
+            // permGrowth（本局永久成长）**保留** —— 那才是"一局里越用越强"的载体
+            foreach (var c in drawPile) c.usesThisBattle = 0;
             Shuffle(drawPile);
         }
 

@@ -83,7 +83,25 @@ namespace ShuYu
         }
     }
 
-    /// <summary>卡牌数据：运算 / 目标 / 数值。</summary>
+    /// <summary>
+    /// 卡牌「能不能整局成长」的类型。
+    /// <para>
+    /// 成长牌的共同点：数值存在卡牌实例自己身上（<see cref="CardData.permGrowth"/>），
+    /// 打到哪、洗牌洗到哪都跟着走，并且随存档保存 → **一局游戏内永久变强**。
+    /// </para>
+    /// </summary>
+    public enum CardGrowth
+    {
+        /// <summary>不成长（绝大多数牌）。</summary>
+        None,
+
+        /// <summary>薪火：一场战斗内用满 3 次 → 本局永久 +1 层灼烧（每场战斗最多触发一次）。</summary>
+        Kindling,
+    }
+
+    /// <summary>
+    /// 卡牌数据：运算 / 目标 / 数值。
+    /// </summary>
     [Serializable]
     public class CardData
     {
@@ -110,13 +128,35 @@ namespace ShuYu
         public ClassTag owner;        // 职业成员标记：标了某职业 → 进该职业的牌池 & 图鉴职业段（None = 全职业牌）
         public bool upgraded;         // 是否已被强化过（火堆强化 → 名字后加「+」并换色）
         public int gainEnergy;        // 出牌后立刻获得的能量（倍增/倍化：0 费还返 1 能量）
-        public bool negateAttack;     // 使敌人「下回合」的攻击无效化（全副武装）；无需选目标
+        public int grantBlock;        // 自我buff：获得 N 层「格挡」（法力护盾 = 1、全副武装 = 2；可叠加，抵挡一次有效攻击后 -1 层）
         public int otherCellsDelta;   // 对「除主目标以外」的所有格造成的数值变化（倍化 -2）
         public int preGrowth;         // 执行主运算前先给主目标 +N 点非自然成长（镰刀横扫 +1）
         public CardCondition condition;   // 是否满足「强化条件」（如目标已被冻结 → 改用 bonusMagnitude）
         public int bonusMagnitude;        // 满足条件时替换成的数值（极寒 2→4、奥术彗星 2→6）
         public bool isToken;              // 衍生牌：只由卡牌/遗物产生，不进卡组、不进奖励、用完即消失，只在图鉴「衍生牌」段展示
         public bool noTarget;             // 不需要选格子就能打（纯资源/效果类牌，如衍生牌「法力饼干」）
+        public bool isEventOnly;          // 事件限定牌：只能从问号事件获得，不进任何奖励池（图鉴单独列「事件牌」段）
+        public CardGrowth growth;         // 成长类型（None = 不成长）
+        public int permGrowth;            // 本局永久成长量（薪火：+N 层灼烧）；随存档保存，跨战斗保留
+        public int usesThisBattle;        // 本场战斗已使用次数（每场战斗开始时由 Deck.Reset 清零）
+
+        /// <summary>成长牌每场战斗内要用满几次才永久 +1（薪火 = 3）。</summary>
+        public const int GrowthUsesRequired = 3;
+
+        /// <summary>实际生效的灼烧层数 = 卡面基础值 + 本局永久成长（普通牌两者相等）。</summary>
+        public int EffectiveBurn => burnLayers + permGrowth;
+
+        /// <summary>
+        /// 卡面描述：普通牌直接返回 <see cref="description"/>；
+        /// 成长牌（薪火）要显示「当前层数 + 本场已用次数」，所以现算，不能用写死的字符串。
+        /// </summary>
+        public string DescriptionText()
+        {
+            if (growth != CardGrowth.None)
+                return "给予 灼烧+" + EffectiveBurn + "\n本场已使用 " + usesThisBattle + "/" + GrowthUsesRequired
+                     + "（用满后本局永久 +1）";
+            return description;
+        }
 
         public CardData(Operation op, TargetType target, int magnitude, int cost = 1, string description = null, bool enchant = false, string cardName = null)
         {
@@ -145,6 +185,7 @@ namespace ShuYu
         public string DisplayText()
         {
             if (!string.IsNullOrEmpty(label)) return label;   // 卡面大字显式覆盖（如菌种培育「+2」）
+            if (growth != CardGrowth.None) return "+" + EffectiveBurn;   // 成长牌（薪火）：大字 = 当前灼烧层数
             if (enchant) return "附魔";
             if (induce > 0) return "诱导";
             if (toxinGoal > 0) return "标记";

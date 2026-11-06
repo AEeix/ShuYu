@@ -34,6 +34,8 @@ namespace ShuYu
         TMP_Text _musicLabel;       // 音乐音量标签
         TMP_Text _sfxLabel;         // 音效音量标签
         TMP_Text _fsLabel;          // 全屏标签
+        int _pendingBattleBlock;    // 事件给的「下一场战斗开始时获得 N 层格挡」，StartBattle 时消耗
+        string _pendingMysteryResult;   // 事件里领卡牌奖励后的结果文本（选完牌回到事件显示它）
 
         // 场景化引用（SceneBuilder 生成场景时用 BindScene 注入；为空则回退到纯运行时生成）
         [SerializeField] GameObject _worldRoot;
@@ -153,13 +155,24 @@ namespace ShuYu
             }
             if (_settingsButton != null)
             {
+                // 设置按钮的文字在运行时改成金色（和「图 鉴」同级），
+                // 场景里烘焙的是灰字，这里改掉就不用重建 Main.unity（用户 2026-10-21 要求）
+                var settingsLabel = _settingsButton.GetComponentInChildren<TMP_Text>();
+                if (settingsLabel != null) settingsLabel.color = GameConfig.Accent;
+
                 _settingsButton.onClick.RemoveListener(ShowSettings);
                 _settingsButton.onClick.AddListener(ShowSettings);
             }
             if (_codexButton != null)
             {
+                // 图鉴按钮现在进「图鉴主页」（卡牌/关键词/遗物/怪物 四个子页的枢纽），
+                // 按钮文字在运行时改成「图 鉴」，这样不用重建场景（烘焙进 Main.unity 的旧文案是「卡牌图鉴」）
+                var label = _codexButton.GetComponentInChildren<TMP_Text>();
+                if (label != null) label.text = "图 鉴";
+
                 _codexButton.onClick.RemoveListener(ShowCodex);
-                _codexButton.onClick.AddListener(ShowCodex);
+                _codexButton.onClick.RemoveListener(ShowCodexHome);
+                _codexButton.onClick.AddListener(ShowCodexHome);
             }
             if (_quitButton != null)
             {
@@ -191,20 +204,68 @@ namespace ShuYu
             rt.offsetMax = new Vector2(rt.offsetMax.x, top);
         }
 
-        /// <summary>打开卡牌图鉴。</summary>
+        /// <summary>
+        /// 打开图鉴主页：版式照抄标题主页（世界坐标轴底图 + 「数域」大字 + 左侧按钮列），
+        /// 按钮换成「卡牌图鉴 / 关键词图鉴 / 遗物图鉴 / 怪物图鉴 / 返回」。
+        /// 图鉴相关的一切入口都从这里进，各子页的「返回」也回到这里（星形结构，子页之间不互相跳）。
+        /// </summary>
+        public void ShowCodexHome()
+        {
+            MusicPlayer.Instance?.Play(MusicTrack.Title);   // 和标题主页同一首，尽量"就是这个界面换了按钮"
+            if (_titleFx != null) _titleFx.SetVisible(true);
+            EnsureWorld();
+            SetWorldAxisVisible(true);
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CodexHomeScreen>(); });
+        }
+
+        /// <summary>打开卡牌图鉴（从图鉴主页进）。</summary>
         public void ShowCodex()
         {
             if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
+            SetWorldAxisVisible(true);
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<CodexScreen>(); });
         }
 
-        /// <summary>打开关键词图鉴（从卡牌图鉴右上角进入；内容来自 KeywordCatalog）。</summary>
+        /// <summary>打开关键词图鉴（从图鉴主页进；内容来自 KeywordCatalog）。</summary>
         public void ShowKeywords()
         {
             if (_titleFx != null) _titleFx.SetVisible(false);
             EnsureWorld();
+            SetWorldAxisVisible(true);
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<KeywordCodexScreen>(); });
+        }
+
+        /// <summary>打开遗物图鉴（内容来自 RelicCatalog.Entries：遗物库加一件，图鉴自动多一行）。</summary>
+        public void ShowRelicCodex()
+        {
+            if (_titleFx != null) _titleFx.SetVisible(false);
+            EnsureWorld();
+            SetWorldAxisVisible(true);
+            Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<RelicCodexScreen>(); });
+        }
+
+        /// <summary>打开怪物图鉴（占位：先把入口和跳转打通，内容以后填）。</summary>
+        public void ShowMonsterCodex()
+        {
+            ShowPlaceholder("怪 物 图 鉴",
+                "占位：这一屏的内容还没做。\n\n做好之后这里列出每种怪物的棋盘形状，\n以及它每回合的自然成长（普通格 / 核心格）。",
+                "数据来源：Core/MonsterShapes.cs + Core/GrowthTable.cs");
+        }
+
+        /// <summary>占位屏的公共实现：标题/正文/来源由调用方给，返回一律回图鉴主页。</summary>
+        void ShowPlaceholder(string title, string body, string note)
+        {
+            if (_titleFx != null) _titleFx.SetVisible(false);
+            EnsureWorld();
+            SetWorldAxisVisible(true);
+            Switch(() =>
+            {
+                ClearScreen();
+                ShowFrame(null);
+                var screen = gameObject.AddComponent<CodexPlaceholderScreen>();
+                screen.Setup(title, body, note);   // 必须在 Start 之前填好，所以紧挨着 AddComponent
+            });
         }
 
         /// <summary>场景化绑定：SceneBuilder 生成场景时调用，把预置 UI 引用挂到本组件。</summary>
@@ -521,11 +582,11 @@ namespace ShuYu
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<RelicRewardScreen>(); });
         }
 
-        /// <summary>选中战利品卡：加入卡组，回路线。</summary>
+        /// <summary>选中战利品卡：加入卡组；然后按来源决定去处（事件里领的就回事件，否则回路线）。</summary>
         public void TakeRewardCard(CardData card)
         {
             _deck.AddCard(card);
-            ShowRoute();
+            OnCardRewardDone();
         }
 
         /// <summary>BOSS 通关：进结局屏。</summary>
@@ -605,6 +666,13 @@ namespace ShuYu
             // 遗物「法力饼干盒」：战斗开始时往手牌里塞一张衍生牌
             if (_player.HasRelic(RelicType.ManaCookie))
                 _turn.deck.hand.Add(CardLibrary.ManaCookie());
+
+            // 事件给的「仅限下一场战斗开始时获得 N 层格挡」（遗物祭坛 B 的效果2），用掉即清
+            if (_pendingBattleBlock > 0)
+            {
+                _turn.GrantBlock(_pendingBattleBlock);
+                _pendingBattleBlock = 0;
+            }
 
             Switch(() => { ClearScreen(); ShowFrame(null); gameObject.AddComponent<BattleScreen>(); });
         }
@@ -729,6 +797,119 @@ namespace ShuYu
             card.Upgrade();
         }
 
+        // ==================== 问号事件用到的 API ====================
+
+        /// <summary>往卡组里加一张指定的牌（事件用，例如薪火）。</summary>
+        public void AddCard(CardData card)
+        {
+            _deck.AddCard(card);
+        }
+
+        /// <summary>获得最多 <paramref name="count"/> 件随机遗物，返回**实际拿到的那些**（事件要把名字写进结果文本）。</summary>
+        public List<Relic> AddRandomRelics(int count)
+        {
+            var got = new List<Relic>();
+            for (int i = 0; i < count; i++)
+            {
+                var relic = AddRandomRelic();
+                if (relic != null) got.Add(relic);
+            }
+            return got;
+        }
+
+        /// <summary>是否有覆盖层正开着（路线界面据此暂停滚轮缩放）。</summary>
+        public bool IsModalOpen => GetComponent<DeckViewerScreen>() != null;
+
+        /// <summary>打开「我的卡组」查看器（覆盖层，不进切屏流程）。</summary>
+        public void ShowDeckViewer()
+        {
+            if (GetComponent<DeckViewerScreen>() != null) return;   // 已经开着就别叠第二层
+            gameObject.AddComponent<DeckViewerScreen>();
+        }
+
+        /// <summary>卡组里是否还有起手基础牌「削减 / 重削」（血之祭坛 B 的判定条件之一）。</summary>
+        public bool HasBasicSubtractCard()
+        {
+            return FullDeck().Exists(c => c.cardName == "削减" || c.cardName == "重削");
+        }
+
+        /// <summary>
+        /// 删掉一张起手基础牌，优先「削减」（-1 最弱，删掉最能提纯卡组），没有再删「重削」。
+        /// 删不掉返回 null。**这是永久删除**：直接从本局的卡组里移出，之后所有战斗都不会再抽到。
+        /// </summary>
+        public CardData RemoveBasicSubtractCard()
+        {
+            var all = FullDeck();
+            var card = all.Find(c => c.cardName == "削减") ?? all.Find(c => c.cardName == "重削");
+            if (card == null) return null;
+            _deck.RemoveCard(card);
+            return card;
+        }
+
+        /// <summary>卡组里是否还有「不是起手卡组自带」的牌（战斗奖励 / 商店 / 事件拿到的）。</summary>
+        public bool HasNonStartingCard() => FindNonStartingCards().Count > 0;
+
+        /// <summary>
+        /// 删掉一张随机的「非起手卡组」牌，删不掉返回 null。永久删除。
+        /// 判定按**卡名**比对起手卡组：强化只改数值不改名，所以强化过的起手牌不会被误判成新牌。
+        /// </summary>
+        public CardData RemoveRandomNonStartingCard()
+        {
+            var list = FindNonStartingCards();
+            if (list.Count == 0) return null;
+            var card = list[UnityEngine.Random.Range(0, list.Count)];
+            _deck.RemoveCard(card);
+            return card;
+        }
+
+        List<CardData> FindNonStartingCards()
+        {
+            var startingNames = new HashSet<string>();
+            if (_cls != null)
+                foreach (var c in _cls.startingDeck)
+                    startingNames.Add(c.cardName);
+            return FullDeck().FindAll(c => !startingNames.Contains(c.cardName));
+        }
+
+        /// <summary>「仅限下一场战斗开始时」获得 N 层格挡（下一场 StartBattle 消耗掉）。</summary>
+        public void GrantBlockNextBattle(int layers)
+        {
+            if (layers > 0) _pendingBattleBlock += layers;
+        }
+
+        /// <summary>事件里领卡牌奖励：选完（或跳过）后回到事件界面显示这行结果文本，而不是回路线。</summary>
+        public void ShowCardRewardThenMystery(string resultText)
+        {
+            _pendingMysteryResult = resultText;
+            ShowCardReward();
+        }
+
+        /// <summary>战利品卡选完 / 跳过后调用：有挂起的事件结果就回事件，否则回路线。</summary>
+        public void OnCardRewardDone()
+        {
+            if (_pendingMysteryResult != null)
+            {
+                string text = _pendingMysteryResult;
+                _pendingMysteryResult = null;
+                ShowMysteryResult(text);
+                return;
+            }
+            ShowRoute();
+        }
+
+        /// <summary>只显示结果地重进问号事件界面（事件里领奖励后回到这里，而不是重新抽一个事件）。</summary>
+        public void ShowMysteryResult(string text)
+        {
+            EnsureWorld();
+            Switch(() =>
+            {
+                ClearScreen();
+                ShowFrame(null);
+                var screen = gameObject.AddComponent<MysteryScreen>();
+                screen.SetResultOnly(text);   // 必须在 Start 之前，所以紧挨着 AddComponent
+            });
+        }
+
         /// <summary>UI 调用：出牌。</summary>
         public bool PlayCard(CardData card, int row, int col)
         {
@@ -822,6 +1003,10 @@ namespace ShuYu
             var relic = GetComponent<RelicRewardScreen>(); if (relic != null) Destroy(relic);
             var codex = GetComponent<CodexScreen>(); if (codex != null) Destroy(codex);
             var keywords = GetComponent<KeywordCodexScreen>(); if (keywords != null) Destroy(keywords);
+            var codexHome = GetComponent<CodexHomeScreen>(); if (codexHome != null) Destroy(codexHome);
+            var placeholder = GetComponent<CodexPlaceholderScreen>(); if (placeholder != null) Destroy(placeholder);
+            var relicCodex = GetComponent<RelicCodexScreen>(); if (relicCodex != null) Destroy(relicCodex);
+            var deckViewer = GetComponent<DeckViewerScreen>(); if (deckViewer != null) Destroy(deckViewer);
         }
 
         /// <summary>只显示指定场景框架（其余隐藏）。frame 为 null 则全部隐藏。</summary>

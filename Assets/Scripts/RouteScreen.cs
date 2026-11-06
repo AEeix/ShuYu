@@ -13,6 +13,7 @@ namespace ShuYu
         RectTransform _root;
         RectTransform _dynamic;
         TMP_Text _hpText;
+        RectTransform _deckBtn;   // 右上角「我的卡组」按钮（运行时生成，OnDestroy 里要自己销毁，否则会越叠越多）
         bool _ownsRoot = true;
         float _zoom = 1f;
         float _targetZoom = 1f;
@@ -45,12 +46,19 @@ namespace ShuYu
             _hpText = UIFactory.CreateText("HP", _root, "HP：" + gm.Player.health, 44, GameConfig.Accent);
             UIFactory.Place(_hpText.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -170), new Vector2(340, -120));
 
+            // 右上角「我的卡组」：随时翻卡组（覆盖层，不打断地图）
+            _deckBtn = UIFactory.CreateButton("DeckBtn", _root, "我的卡组 " + gm.DeckCards.Count, 32,
+                GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.ShowDeckViewer());
+            UIFactory.Place(_deckBtn, new Vector2(1, 1), new Vector2(1, 1),
+                new Vector2(-320, -170), new Vector2(-40, -120));
+
             Build();
         }
 
         void OnDestroy()
         {
             if (_hpText != null) Destroy(_hpText.gameObject);
+            if (_deckBtn != null) Destroy(_deckBtn.gameObject);
             if (_dynamic != null) Destroy(_dynamic.gameObject);
             if (_ownsRoot && _root != null) Destroy(_root.gameObject);
             // 复位坐标轴缩放
@@ -60,6 +68,9 @@ namespace ShuYu
 
         void Update()
         {
+            // 「我的卡组」这种覆盖层开着的时候，别让滚轮顺手缩放了后面的地图
+            if (GameManager.Instance != null && GameManager.Instance.IsModalOpen) return;
+
             // 鼠标滚轮缩放地图：目标值 + SmoothDamp 平滑（带惯性），坐标轴同步
             float scroll = Input.mouseScrollDelta.y;
             if (scroll != 0f)

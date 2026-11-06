@@ -16,6 +16,9 @@ namespace ShuYu
 
         /// <summary>冻结（按层数让该格停止行动）。</summary>
         Freeze,
+
+        /// <summary>格挡（玩家自身的「自我buff」：按层数抵挡敌人攻击）。</summary>
+        Block,
     }
 
     /// <summary>关键词条目：名字 + 说明（说明里的关键词也会自动加粗）。</summary>
@@ -52,6 +55,9 @@ namespace ShuYu
 
             new KeywordDef(Keyword.Freeze, "冻结",
                 "跳过该格接下来的 x 个攻击回合，并封锁自然成长。"),
+
+            new KeywordDef(Keyword.Block, "格挡",
+                "自我buff：抵挡下一次攻击。可叠加，每多一层多格挡一次；抵挡掉一次造成了伤害的攻击后，层数 -1。"),
         };
 
         /// <summary>全部关键词（顺序即图鉴里的显示顺序）。</summary>

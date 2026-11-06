@@ -7,8 +7,7 @@ namespace ShuYu
     /// <summary>
     /// 关键词图鉴：把地块状态关键词（标记 / 灼烧 / 冻结）一个个摊开讲清楚。
     /// <para>
-    /// 入口在卡牌图鉴界面的右上角按钮（<see cref="CodexScreen"/>），返回也回到卡牌图鉴，
-    /// 这样不用改动场景里烘焙好的标题界面。
+    /// 入口在图鉴主页（<see cref="CodexHomeScreen"/>），返回也回到图鉴主页。
     /// </para>
     /// <para>
     /// 内容全部来自 <see cref="KeywordCatalog"/>：想加关键词只改那个文件，这里会自动多出一张卡。
@@ -37,7 +36,7 @@ namespace ShuYu
                 CreateEntry(def);
 
             var back = UIFactory.CreateButton("Back", _root, "返 回", 44,
-                GameConfig.Accent, GameConfig.Background, () => GameManager.Instance.ShowCodex());
+                GameConfig.Accent, GameConfig.Background, () => GameManager.Instance.ShowCodexHome());
             UIFactory.Place(back, Vector2.zero, Vector2.zero,
                 new Vector2(860, 40), new Vector2(1060, 120));
 

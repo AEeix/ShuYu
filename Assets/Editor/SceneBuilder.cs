@@ -122,10 +122,10 @@ namespace ShuYu
             var newGame = UIFactory.CreateButton("NewGameButton", parent, "开始新游戏", 40, GameConfig.CardBase, GameConfig.Accent, null);
             PlaceAbs(newGame, OriginX + 60, 460, OriginX + width, 530);
 
-            var settings = UIFactory.CreateButton("SettingsButton", parent, "设置", 36, GameConfig.CardBase, GameConfig.SubText, null);
+            var settings = UIFactory.CreateButton("SettingsButton", parent, "设置", 36, GameConfig.CardBase, GameConfig.Accent, null);
             PlaceAbs(settings, OriginX + 60, 380, OriginX + width, 450);
 
-            var codex = UIFactory.CreateButton("CodexButton", parent, "卡牌图鉴", 38, GameConfig.CardBase, GameConfig.Accent, null);
+            var codex = UIFactory.CreateButton("CodexButton", parent, "图 鉴", 38, GameConfig.CardBase, GameConfig.Accent, null);
             PlaceAbs(codex, OriginX + 60, 300, OriginX + width, 370);
 
             var quit = UIFactory.CreateButton("QuitButton", parent, "退出游戏", 36, GameConfig.CardBase, GameConfig.SubText, null);
@@ -138,13 +138,9 @@ namespace ShuYu
             quitButton = quit.GetComponent<Button>();
         }
 
+        /// <summary>绝对定位（走 UIFactory 那一份，和运行时标题页 / 图鉴主页共用同一套坐标语义）。</summary>
         static void PlaceAbs(RectTransform rt, float left, float bottom, float right, float top)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.zero;
-            rt.offsetMin = new Vector2(left, bottom);
-            rt.offsetMax = new Vector2(right, top);
-        }
+            => UIFactory.PlaceAbs(rt, left, bottom, right, top);
 
         /// <summary>持久化 TMP 字体资产（含子资产：图集纹理 + 材质），避免场景保存后 font 引用丢失。</summary>
         static TMP_FontAsset EnsurePersistentFont(string sourceResource, string assetPath)

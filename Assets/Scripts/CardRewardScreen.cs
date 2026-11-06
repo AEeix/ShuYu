@@ -67,9 +67,9 @@ namespace ShuYu
 
                 // 描述（原本完全没画 → 「全力进攻 / 削减一整行」这类牌在奖励界面看不到完整效果）。
                 // 字号自动缩放，保证多行文本整段显示不被截断。
-                if (!string.IsNullOrEmpty(card.description))
+                if (!string.IsNullOrEmpty(card.DescriptionText()))
                 {
-                    var desc = UIFactory.CreateText("Desc", cardRt, KeywordCatalog.Highlight(card.description), 26, GameConfig.SubText);
+                    var desc = UIFactory.CreateText("Desc", cardRt, KeywordCatalog.Highlight(card.DescriptionText()), 26, GameConfig.SubText);
                     desc.alignment = TextAlignmentOptions.Center;
                     desc.enableAutoSizing = true;
                     desc.fontSizeMin = 13;
@@ -88,7 +88,7 @@ namespace ShuYu
             }
 
             var skip = UIFactory.CreateButton("Skip", _root, "跳过", 40,
-                GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.ShowRoute());
+                GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.OnCardRewardDone());
             UIFactory.Place(skip,
                 new Vector2(0.5f, 0), new Vector2(0.5f, 0),
                 new Vector2(-120, 60), new Vector2(120, 140));

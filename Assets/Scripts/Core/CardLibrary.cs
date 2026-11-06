@@ -8,28 +8,20 @@ namespace ShuYu
     /// </summary>
     public static class CardLibrary
     {
-        public static CardData Make(Operation op, int magnitude, int cost = 1)
+        /// <summary>
+        /// 造一张「单格运算」的全职业通用牌（起手基础牌 / 战利品牌共用）。
+        /// <para>
+        /// **卡名必须显式传**：早期这里靠 <c>AutoName()</c> 按「运算 + 数值」猜名字，有三个毛病：
+        /// ① 数值一改名字就跟着漂（-3 叫「重击」，改成 -2 就变「重削」）；
+        /// ② 会撞名（-3 和 -4 都叫「重击」，卡组里出现两张同名不同牌）；
+        /// ③ 「引爆 / 催爆」是已停用的「加法催爆流」遗留叫法，跟现在的规则毫无关系。
+        /// 名字归名字、数值归数值，以后调数值就不会偷偷改掉玩家看到的牌名。
+        /// </para>
+        /// </summary>
+        public static CardData Make(Operation op, int magnitude, int cost, string cardName)
         {
             // Make() 造的都是通用牌 → 一律标「全职业」
-            return new CardData(op, TargetType.Single, magnitude, cost, null, false, AutoName(op, magnitude)) { owner = ClassTag.All };
-        }
-
-        /// <summary>基础卡自动命名（按运算 + 数值）。</summary>
-        static string AutoName(Operation op, int magnitude)
-        {
-            switch (op)
-            {
-                case Operation.Subtract:
-                    return magnitude >= 3 ? "重击" : (magnitude >= 2 ? "重削" : "削减");
-                case Operation.Add:
-                    return magnitude >= 5 ? "引爆" : "催爆";
-                case Operation.Divide:
-                    return magnitude == 2 ? "折半" : "分割";
-                case Operation.Multiply:
-                    return magnitude == 2 ? "倍增" : "倍化";
-                default:
-                    return "运算";
-            }
+            return new CardData(op, TargetType.Single, magnitude, cost, null, false, cardName) { owner = ClassTag.All };
         }
 
         /// <summary>战士专属卡：铁腕重击（2 费，-6，配被动「铁腕」实际 -7）。</summary>
@@ -78,8 +70,8 @@ namespace ShuYu
         public static CardData WarriorArmor()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 3,
-                "敌人下回合的攻击无效；你的下一回合多获得 1 点能量", false, "全副武装") { owner = ClassTag.Warrior };
-            c.negateAttack = true;
+                "获得 2 层 格挡；你的下一回合多获得 1 点能量", false, "全副武装") { owner = ClassTag.Warrior };
+            c.grantBlock = 2;        // 自我buff：2 层格挡（能连挡两次攻击）
             c.nextEnergyDelta = 1;
             c.label = "格挡";
             return c;
@@ -126,13 +118,13 @@ namespace ShuYu
             return c;
         }
 
-        /// <summary>法师专属卡：法力护盾（2 费，免疫敌人下一次攻击；无需选目标）。</summary>
+        /// <summary>法师专属卡：法力护盾（2 费，获得 1 层 格挡：抵挡下一次攻击；无需选目标）。</summary>
         public static CardData MageShield()
         {
             var c = new CardData(Operation.Subtract, TargetType.Single, 0, 2,
-                "免疫敌人的下一次攻击", false, "法力护盾") { owner = ClassTag.Mage };
-            c.negateAttack = true;
-            c.label = "护盾";
+                "获得 1 层 格挡", false, "法力护盾") { owner = ClassTag.Mage };
+            c.grantBlock = 1;   // 自我buff：格挡层数（多张叠起来能连挡好几次）
+            c.label = "格挡";
             return c;
         }
 
@@ -273,8 +265,8 @@ namespace ShuYu
         {
             return new List<CardData>
             {
-                Make(Operation.Subtract, 1),   // 削减 -1
-                Make(Operation.Subtract, 2),   // 重削 -2
+                Make(Operation.Subtract, 1, 1, "削减"),   // -1
+                Make(Operation.Subtract, 2, 1, "重削"),   // -2
             };
         }
 
@@ -297,9 +289,9 @@ namespace ShuYu
         {
             return new List<CardData>
             {
-                Make(Operation.Subtract, 3),                            // 重击 -3
+                Make(Operation.Subtract, 3, 1, "重击"),                 // -3
                 RewardHalve(),                                          // 折半 ÷2，延迟费用
-                Make(Operation.Divide, 3, 3),                           // 分割 ÷3（3 费；除法的解析被动照旧）
+                Make(Operation.Divide, 3, 3, "分割"),                   // ÷3（3 费；除法的解析被动照旧）
                 RewardDouble(),                                         // 倍增 ×2（0 费，返 1 能量）
                 RewardTriple(),                                         // 倍化 ×3（0 费，其余格 -2，返 1 能量）
                 new CardData(Operation.Subtract, TargetType.Row, 1, 1, null, false, "削减一整行") { owner = ClassTag.All },
@@ -326,6 +318,38 @@ namespace ShuYu
             return new List<CardData>
             {
                 ManaCookie(),   // 法力饼干（法师初始遗物产生）
+            };
+        }
+
+        // ---- 事件限定牌（只能从问号事件拿到，不进任何奖励池）----
+
+        /// <summary>
+        /// 事件限定牌：薪火（0 费，给一个格子叠 1 层 灼烧）。
+        /// <para>
+        /// **一局游戏内会成长**：一场战斗里用满 3 次 → 本局永久 +1 层（每场战斗最多触发一次）。
+        /// 成长量存在卡牌实例的 <see cref="CardData.permGrowth"/> 上，随卡走、随存档保存，
+        /// 实际生效层数看 <see cref="CardData.EffectiveBurn"/>。
+        /// </para>
+        /// <para>
+        /// 只能从「净化之火」事件的 B 选项拿到，跟奖励池**完全隔离**（`isEventOnly = true`）。
+        /// </para>
+        /// </summary>
+        public static CardData Kindling()
+        {
+            var c = new CardData(Operation.Subtract, TargetType.Single, 0, 0,
+                "给予 灼烧+1", false, "薪火") { owner = ClassTag.All };
+            c.isEventOnly = true;
+            c.burnLayers = 1;
+            c.growth = CardGrowth.Kindling;
+            return c;
+        }
+
+        /// <summary>事件限定牌的图鉴清单（图鉴「事件牌」段）。加新事件牌：写工厂（标 `isEventOnly`）+ 在这里加一行。</summary>
+        public static List<CardData> AllEventCards()
+        {
+            return new List<CardData>
+            {
+                Kindling(),   // 薪火（净化之火事件）
             };
         }
 
@@ -382,7 +406,7 @@ namespace ShuYu
         {
             var universal = RewardPool();
             if (passive == PassiveType.Bloodthirst || passive == PassiveType.Harvest)
-                universal.Add(Make(Operation.Add, 2));        // 加法牌是嗜血/收割职业专属
+                universal.Add(Make(Operation.Add, 2, 1, "催爆"));   // 加法牌是嗜血/收割职业专属（名字沿用旧叫法）
             var classCards = ClassPool(tag);
 
             var result = new List<CardData>();
@@ -402,24 +426,25 @@ namespace ShuYu
             return result;
         }
 
-        /// <summary>战士：减法压制（切瘤）。</summary>
+        /// <summary>
+        /// 战士：减法压制（切瘤）—— 起手 2 张职业牌（铁腕重击 / 横扫）+ 5 张基础牌 = 7 张，
+        /// 基础牌构成与法师、收割者完全一致：3×削减(-1) + 2×重削(-2)。
+        /// </summary>
         public static List<CardData> WarriorDeck()
         {
             return new List<CardData>
             {
                 WarriorClassCard(),  // 专属卡：铁腕重击
                 WarriorSweep(),      // 专属卡：横扫（AOE）
-                WarriorQuench(),     // 专属卡：淬火（原「火焰附魔」）
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 2),
-                Make(Operation.Subtract, 2),
-                Make(Operation.Subtract, 2),
-                Make(Operation.Subtract, 3),
-                Make(Operation.Subtract, 1),
-                // 折半（÷2）已从起始卡组移除：起始卡组里这张是没经过削弱的旧版，
-                // 现在全游戏只保留战利品池里削弱过的 RewardHalve（÷2 但下回合能量 -1）。
+                // 基础牌：3×削减(-1)、2×重削(-2)（用户 2026-10-21：和其他两职业保持一致，且去掉起手的重击）
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 2, 1, "重削"),
+                Make(Operation.Subtract, 2, 1, "重削"),
+                // 淬火【不在】起手卡组里：它仍是战士职业牌，只走战利品 40% 职业池获取。
+                // 重击(-3) 也已从起手移除（2026-10-21 用户要求）：三职业起手基础牌统一成 3×削减 + 2×重削。
+                // 折半（÷2）从起手移除更早：全游戏只保留战利品池里削弱过的 RewardHalve（÷2 但下回合能量 -1）。
             };
         }
 
@@ -430,11 +455,12 @@ namespace ShuYu
             {
                 MageFreeze(),   // 专属卡：冻结（冻结+2）
                 MageFireball(), // 专属卡：火球术（-2 并灼烧+2）
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 2),
-                Make(Operation.Subtract, 2),
+                // 基础牌：3×削减(-1)、2×重削(-2)
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 2, 1, "重削"),
+                Make(Operation.Subtract, 2, 1, "重削"),
             };
         }
 
@@ -445,11 +471,12 @@ namespace ShuYu
             {
                 ReaperInduce(),          // 专属卡：诱导
                 ReaperToxicCatalyst(),   // 专属卡：毒性催化（标记 2 → 8 伤）
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 1),
-                Make(Operation.Subtract, 2),
-                Make(Operation.Subtract, 2),
+                // 基础牌：3×削减(-1)、2×重削(-2)
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 1, 1, "削减"),
+                Make(Operation.Subtract, 2, 1, "重削"),
+                Make(Operation.Subtract, 2, 1, "重削"),
             };
         }
     }

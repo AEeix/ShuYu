@@ -47,6 +47,7 @@ namespace ShuYu
             BuildHand(_root);
             BuildClassInfo(_root);
             BuildMonsterView(_root);
+            BuildGrowthInfo(_root);   // 怪物立绘上方：普通格 / 核心格 每回合各成长多少
             BuildDeckButton(_root);
             BuildOverlay(_root);
         }
@@ -61,6 +62,16 @@ namespace ShuYu
             UIFactory.Place(hp.rectTransform,
                 new Vector2(0, 0), new Vector2(0, 0),
                 new Vector2(60, 40), new Vector2(400, 110));
+
+            // 自我buff「格挡」层数（血条右边；0 层不显示，免得开局就挂个「格挡 x0」）
+            int block = gm.Turn.BlockLayers;
+            if (block > 0)
+            {
+                var guard = UIFactory.CreateText("Block", parent, "格挡 x" + block, 40, GameConfig.CardBlue);
+                UIFactory.Place(guard.rectTransform,
+                    new Vector2(0, 0), new Vector2(0, 0),
+                    new Vector2(420, 40), new Vector2(720, 110));
+            }
 
             // 提示（顶部）
             _hintText = UIFactory.CreateText("Hint", parent, _selectedCard == null
@@ -500,6 +511,34 @@ namespace ShuYu
             _monsterAnim = sa;
         }
 
+        /// <summary>
+        /// 怪物立绘上方的成长总览：这一场每回合「普通格 / 核心格」各自然成长多少（两行文字）。
+        /// <para>
+        /// 和格子上那个逐格的「+N」小标（<see cref="CreateGrowthBadge"/>）是同一份数据的两种呈现：
+        /// 小标告诉你"这一格会长"，这里告诉你"这只怪整体长多快"。
+        /// 数值直接读 <c>TurnManager.growth</c>，所以显示值恒等于 <see cref="TurnManager.GrowthOf"/> 的结算值。
+        /// </para>
+        /// <para>
+        /// 位置固定在立绘区域（x 40~440、y 0~400）正上方；龙 / 蛇 / BOSS 没有立绘时这里照样显示，
+        /// 因为左侧那块区域本来就是空的，显示的仍是这只怪的成长。
+        /// </para>
+        /// </summary>
+        void BuildGrowthInfo(Transform parent)
+        {
+            var growth = GameManager.Instance.Turn.growth;
+
+            var label = UIFactory.CreateText("GrowthLabel", parent, "普通格 / 核心格", 26, GameConfig.SubText);
+            UIFactory.Place(label.rectTransform,
+                new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(40, 410), new Vector2(440, 458));
+
+            var value = UIFactory.CreateText("GrowthValue", parent, "+" + growth.Part + " / +" + growth.Core,
+                34, GameConfig.GrowthMark);
+            UIFactory.Place(value.rectTransform,
+                new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(40, 460), new Vector2(440, 516));
+        }
+
         /// <summary>当前怪物的立绘 key：slime / crab / flower；无立绘（龙/蛇/BOSS）返回 null。</summary>
         string MonsterKey()
         {
@@ -575,52 +614,15 @@ namespace ShuYu
             }
         }
 
-        /// <summary>在弹窗里铺一张卡（名字 + 大数字 + 左上角费用 + 圆角描边）。</summary>
+        /// <summary>
+        /// 在弹窗里铺一张卡。卡面本身走 <see cref="UIFactory.CreateCardFace"/>（费用 + 卡名 + 大字 + 描述），
+        /// 和路线界面「我的卡组」用的是同一份，保证两边看到的信息一致。
+        /// </summary>
         void CreatePileCard(CardData card, float x, float y, float cardW, float cardH, RectTransform parent)
         {
-            var rt = UIFactory.CreateRect("Card_" + card.DisplayText(), parent);
+            var rt = UIFactory.CreateCardFace(parent, card, new Vector2(cardW, cardH));
             UIFactory.Place(rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(x - cardW / 2f, y - cardH / 2f), new Vector2(x + cardW / 2f, y + cardH / 2f));
-
-            var img = rt.gameObject.AddComponent<Image>();
-            img.sprite = UIFactory.Rounded;
-            img.type = Image.Type.Sliced;
-            img.color = GameConfig.CardBase;
-            UIFactory.AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
-
-            // 名字（顶部）。与大字相同也照画（费用右边那格小字不能空 —— 用户 2026-10-21 反馈）
-            if (!string.IsNullOrEmpty(card.cardName))
-            {
-                var name = UIFactory.CreateText("Name", rt, card.DisplayName(), 30,
-                    card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
-                name.alignment = TextAlignmentOptions.Center;
-                UIFactory.Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-                    new Vector2(10, -50), new Vector2(-10, -12));
-            }
-
-            // 大数字（中下部）。大字可能比一个数值长（「+2 cost」「+1 -5」）→ 自动缩字号防溢出
-            var label = UIFactory.CreateText("Label", rt, card.DisplayText(), 56, GameConfig.CardColor(card.op));
-            label.enableAutoSizing = true;
-            label.fontSizeMin = 20;
-            label.fontSizeMax = 56;
-            UIFactory.Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-                new Vector2(10, -148), new Vector2(-10, -52));
-
-            // 描述（底部；字号自动缩放，长文本不被截断）
-            if (!string.IsNullOrEmpty(card.description))
-            {
-                var desc = UIFactory.CreateText("Desc", rt, KeywordCatalog.Highlight(card.description), 22, GameConfig.SubText);
-                desc.alignment = TextAlignmentOptions.Center;
-                desc.enableAutoSizing = true;
-                desc.fontSizeMin = 11;
-                desc.fontSizeMax = 22;
-                UIFactory.Place(desc.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
-                    new Vector2(10, 8), new Vector2(-10, 96));
-            }
-
-            // 费用（左上角）
-            var cost = UIFactory.CreateText("Cost", rt, card.cost.ToString(), 36, GameConfig.Accent);
-            UIFactory.Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(10, -46), new Vector2(60, -12));
         }
 
         void ClosePileViewer()

@@ -316,6 +316,20 @@ namespace ShuYu
             rt.offsetMax = offsetMax;
         }
 
+        /// <summary>
+        /// 绝对定位：锚点固定左下角 (0,0)，四个参数就是「相对父节点左下角」的设计稿像素坐标。
+        /// 标题主页（<see cref="TitleScreen"/>）、图鉴主页（<see cref="CodexHomeScreen"/>）、
+        /// 以及编辑器烘焙标题（<c>SceneBuilder.BuildTitle</c>）共用这一份，
+        /// 免得三处各抄一段、以后改版式只改了一处导致两个页面错位。
+        /// </summary>
+        public static void PlaceAbs(RectTransform rt, float left, float bottom, float right, float top)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.zero;
+            rt.offsetMin = new Vector2(left, bottom);
+            rt.offsetMax = new Vector2(right, top);
+        }
+
         /// <summary>给 UI 元素加描边（CRT 风格）。</summary>
         public static void AddOutline(Graphic graphic, Color color, Vector2 distance)
         {
@@ -362,9 +376,9 @@ namespace ShuYu
             label.fontSizeMax = 56;
             Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(8, -132), new Vector2(-8, -46));
 
-            if (!string.IsNullOrEmpty(card.description))
+            if (!string.IsNullOrEmpty(card.DescriptionText()))
             {
-                var desc = CreateText("Desc", rt, card.description, 20, GameConfig.SubText);
+                var desc = CreateText("Desc", rt, KeywordCatalog.Highlight(card.DescriptionText()), 20, GameConfig.SubText);
                 desc.alignment = TextAlignmentOptions.Center;
                 desc.enableAutoSizing = true;
                 desc.fontSizeMin = 11;
@@ -374,6 +388,79 @@ namespace ShuYu
 
             var c = card;
             if (onPick != null) btn.onClick.AddListener(() => onPick(c));
+            return rt;
+        }
+
+        /// <summary>
+        /// 画一张「信息完整」的卡面：圆角描边 + 左上角<b>费用</b> + 顶部卡名 + 蓝/橙/金大字 + 底部描述。
+        /// <para>
+        /// 规格按 **200×260** 设计（战斗里「牌堆查看」用的就是这个尺寸）；换尺寸会等比缩放字号和间距。
+        /// 战斗里的牌堆查看和路线界面的「我的卡组」共用这一份，卡面信息才不会两边不一致。
+        /// </para>
+        /// <para>
+        /// <paramref name="onPick"/> 非空时可点击（返回的 RectTransform 锚点默认在中间，位置由调用方决定）。
+        /// </para>
+        /// </summary>
+        public static RectTransform CreateCardFace(Transform parent, CardData card, Vector2 size, UnityAction<CardData> onPick = null)
+        {
+            const float BaseW = 200f;          // 设计稿宽度
+            float k = size.x / BaseW;          // 缩放系数（字号、间距都乘它）
+
+            var rt = CreateRect("Card_" + card.DisplayText(), parent);
+            rt.sizeDelta = size;
+
+            var img = rt.gameObject.AddComponent<Image>();
+            img.sprite = Rounded;
+            img.type = Image.Type.Sliced;
+            img.color = GameConfig.CardBase;
+            AddOutline(img, GameConfig.SubText, new Vector2(2f, -2f));
+
+            // 卡名（顶部小字；与大字相同也照画 —— 费用右边那格小字不能空）
+            if (!string.IsNullOrEmpty(card.cardName))
+            {
+                var name = CreateText("Name", rt, card.DisplayName(), 30 * k,
+                    card.upgraded ? GameConfig.UpgradedName : GameConfig.SubText);
+                name.alignment = TextAlignmentOptions.Center;
+                name.enableAutoSizing = true;
+                name.fontSizeMin = 14 * k;
+                name.fontSizeMax = 30 * k;
+                Place(name.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                    new Vector2(10 * k, -50 * k), new Vector2(-10 * k, -12 * k));
+            }
+
+            // 大字（运算 / 效果缩写）
+            var label = CreateText("Label", rt, card.DisplayText(), 56 * k, GameConfig.CardColor(card.op));
+            label.alignment = TextAlignmentOptions.Center;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 20 * k;
+            label.fontSizeMax = 56 * k;
+            Place(label.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
+                new Vector2(10 * k, -148 * k), new Vector2(-10 * k, -52 * k));
+
+            // 描述（底部；关键词自动加粗，成长牌读 DescriptionText 现算）
+            if (!string.IsNullOrEmpty(card.DescriptionText()))
+            {
+                var desc = CreateText("Desc", rt, KeywordCatalog.Highlight(card.DescriptionText()), 22 * k, GameConfig.SubText);
+                desc.alignment = TextAlignmentOptions.Center;
+                desc.enableAutoSizing = true;
+                desc.fontSizeMin = 11 * k;
+                desc.fontSizeMax = 22 * k;
+                Place(desc.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
+                    new Vector2(10 * k, 8 * k), new Vector2(-10 * k, 96 * k));
+            }
+
+            // 费用（左上角金色）
+            var cost = CreateText("Cost", rt, card.cost.ToString(), 36 * k, GameConfig.Accent);
+            Place(cost.rectTransform, new Vector2(0, 1), new Vector2(0, 1),
+                new Vector2(10 * k, -46 * k), new Vector2(60 * k, -12 * k));
+
+            if (onPick != null)
+            {
+                var btn = rt.gameObject.AddComponent<Button>();
+                btn.targetGraphic = img;
+                var c = card;
+                btn.onClick.AddListener(() => onPick(c));
+            }
             return rt;
         }
 

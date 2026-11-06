@@ -49,17 +49,15 @@ namespace ShuYu
             var tokens = CardLibrary.AllTokenCards();
             if (tokens.Count > 0) AddSection("衍生牌", tokens);
 
+            // 事件牌：只能从问号事件获得（不进任何奖励池），有才显示这一段
+            var events = CardLibrary.AllEventCards();
+            if (events.Count > 0) AddSection("事件牌", events);
+
+            // 返回图鉴主页（跳转链：标题主页 → 图鉴主页 → 卡牌图鉴 → 返回图鉴主页）
             var back = UIFactory.CreateButton("Back", _root, "返 回", 44,
-                GameConfig.Accent, GameConfig.Background, () => GameManager.Instance.ShowTitle());
+                GameConfig.Accent, GameConfig.Background, () => GameManager.Instance.ShowCodexHome());
             UIFactory.Place(back, Vector2.zero, Vector2.zero,
                 new Vector2(860, 40), new Vector2(1060, 120));
-
-            // 右上角「关键词图鉴」入口（关键词说明单独一屏，内容来自 KeywordCatalog）
-            var keywords = UIFactory.CreateButton("Keywords", _root, "关键词图鉴", 40,
-                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowKeywords());
-            UIFactory.Place(keywords,
-                new Vector2(1, 0), new Vector2(1, 0),
-                new Vector2(-460, 40), new Vector2(-40, 120));
 
             // 嵌套布局（VerticalLayoutGroup + GridLayoutGroup + ContentSizeFitter）首帧尺寸可能没算准，
             // 这里强制重建一次，保证滚动范围正确。
@@ -177,13 +175,14 @@ namespace ShuYu
             var list = new List<CardData>();
             foreach (var c in cards)
             {
-                string key = c.cardName + "|" + c.DisplayText() + "|" + c.cost + "|" + c.description
+                string key = c.cardName + "|" + c.DisplayText() + "|" + c.cost + "|" + c.DescriptionText()
                     + "|" + c.magnitude + "|" + c.heal + "|" + c.induce
                     + "|" + c.toxinGoal + "|" + c.toxinDamage + "|" + c.nextEnergyDelta + "|" + c.nextDrawDelta
                     + "|" + c.delayedValueDelta + "|" + c.noCore + "|" + c.label + "|" + c.burnLayers
                     + "|" + c.freezeLayers + "|" + c.gainEnergy + "|" + c.condition + "|" + c.bonusMagnitude
                     + "|" + c.isToken + "|" + c.noTarget + "|" + c.otherCellsDelta + "|" + c.preGrowth
-                    + "|" + c.onHurtAllDelta + "|" + c.onHurtHeal;
+                    + "|" + c.onHurtAllDelta + "|" + c.onHurtHeal + "|" + c.grantBlock
+                    + "|" + c.growth + "|" + c.permGrowth + "|" + c.isEventOnly;
                 if (seen.Add(key)) list.Add(c);
             }
             return list;
@@ -227,9 +226,9 @@ namespace ShuYu
                 new Vector2(8, -96), new Vector2(-8, -46));
 
             // 描述（下半区；字号自动缩放，长描述不会被截断。文本里的关键词由 KeywordCatalog 自动加粗）
-            if (!string.IsNullOrEmpty(card.description))
+            if (!string.IsNullOrEmpty(card.DescriptionText()))
             {
-                var desc = UIFactory.CreateText("Desc", rt, KeywordCatalog.Highlight(card.description), 18, GameConfig.SubText);
+                var desc = UIFactory.CreateText("Desc", rt, KeywordCatalog.Highlight(card.DescriptionText()), 18, GameConfig.SubText);
                 desc.alignment = TextAlignmentOptions.Center;
                 desc.enableAutoSizing = true;
                 desc.fontSizeMin = 10;

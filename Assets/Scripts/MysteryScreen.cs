@@ -7,19 +7,32 @@ using System.Collections.Generic;
 namespace ShuYu
 {
     /// <summary>
-    /// 地图问号：随机剧情事件。每个事件有一段前置剧情 + 两个选项（「做」或「离开」），
-    /// 选项括号里标注后果。选完显示结果，继续前进。
+    /// 地图问号：随机剧情事件。每个事件有一段前置剧情 + 两个选项（括号里标注后果），
+    /// 选完显示结果文本，再「继续前进」。
+    /// <para>
+    /// 两种特殊流程：
+    /// ① <see cref="MysteryChoice.cardRewardResult"/> 非空 = 这个选项先开「战利品三选一」，
+    ///    选完（或跳过）再回到本界面显示那段结果文本（见 <see cref="GameManager.ShowCardRewardThenMystery"/>）；
+    /// ② <see cref="SetResultOnly"/> = 只显示结果态，就是上面那种「领完奖励回到事件」的情形。
+    /// </para>
+    /// <para>
+    /// 加事件：在 <see cref="BuildEvent"/> 里加一个 case，并把 <see cref="Start"/> 里的
+    /// <c>Random.Range(0, 6)</c> 的数字同步 +1（忘了同步 = 新事件永远抽不到）。
+    /// 现在的 id 5 走 <c>default</c>，加新事件前记得把它改成显式的 <c>case 5</c>。
+    /// </para>
     /// </summary>
     public class MysteryScreen : MonoBehaviour
     {
         RectTransform _root;
         RectTransform _choicesRoot;   // 选项区（选完后销毁）
+        string _resultOnly;           // 非空 = 只显示结果态（由 GameManager.ShowMysteryResult 传进来）
 
-        /// <summary>一个选项：按钮文本 + 执行效果（返回结果描述）。</summary>
+        /// <summary>一个选项：按钮文本 + 执行效果（返回结果描述）+ 可选的「先开卡牌奖励」标记。</summary>
         class MysteryChoice
         {
             public string text;
             public Func<string> apply;
+            public string cardRewardResult;   // 非空 = 先开战利品三选一，选完回到事件显示这段文本
         }
 
         /// <summary>一个事件：标题 + 剧情 + 选项列表。</summary>
@@ -30,11 +43,24 @@ namespace ShuYu
             public List<MysteryChoice> choices = new List<MysteryChoice>();
         }
 
+        /// <summary>
+        /// 只显示结果态（事件里领完卡牌奖励后回到这里，而不是重新抽一个事件）。
+        /// 必须在 <c>Start</c> 之前调用。
+        /// </summary>
+        public void SetResultOnly(string text) { _resultOnly = text; }
+
         void Start()
         {
             var canvas = UIFactory.EnsureCanvas();
             _root = UIFactory.CreateRect("MysteryRoot", canvas.transform);
             UIFactory.Stretch(_root);
+
+            // 从卡牌奖励回来：只显示结果，不再抽事件
+            if (_resultOnly != null)
+            {
+                ShowResult(_resultOnly);
+                return;
+            }
 
             var ev = BuildEvent(UnityEngine.Random.Range(0, 6));
 
@@ -69,11 +95,25 @@ namespace ShuYu
             }
         }
 
-        /// <summary>点选一个选项：执行效果 → 隐藏选项 → 显示结果 + 继续按钮。</summary>
+        /// <summary>点选一个选项：要么转去卡牌奖励，要么执行效果并显示结果。</summary>
         void OnChoose(MysteryChoice ch)
         {
             var gm = GameManager.Instance;
-            string result = ch.apply();
+
+            // 这个选项是「领一份战利品」：先开三选一，选完再回到事件显示结果（界面先别销毁）
+            if (ch.cardRewardResult != null)
+            {
+                gm.ShowCardRewardThenMystery(ch.cardRewardResult);
+                return;
+            }
+
+            ShowResult(ch.apply());
+        }
+
+        /// <summary>显示结果文本（选项区销毁）+「继续前进」；扣血致死时改文案、清档。</summary>
+        void ShowResult(string result)
+        {
+            var gm = GameManager.Instance;
 
             if (_choicesRoot != null) { Destroy(_choicesRoot.gameObject); _choicesRoot = null; }
 
@@ -110,8 +150,8 @@ namespace ShuYu
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "继续赶路（什么都不会发生）",
-                        apply = () => "你绕开帐篷，继续赶路。"
+                        text = "搜索武器箱（获得一份卡牌奖励）",
+                        cardRewardResult = "你找到了遗落的武器，你相信这可以帮助到你"
                     });
                     break;
 
@@ -130,8 +170,12 @@ namespace ShuYu
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "绕开它（什么都不会发生）",
-                        apply = () => "你绕开了祭坛。"
+                        text = "在祭坛旁休息（恢复 8 点生命）",
+                        apply = () =>
+                        {
+                            gm.Heal(8);
+                            return "这个祭坛给你一股宁静感，你在祭坛下好好地睡了一觉";
+                        }
                     });
                     break;
 
@@ -150,8 +194,20 @@ namespace ShuYu
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "远离它（什么都不会发生）",
-                        apply = () => "你远离了祭坛。"
+                        text = "砸碎祭坛（砸烂它）",
+                        apply = () =>
+                        {
+                            // 条件：生命 ≥ 12 且卡组里还有「削减 / 重削」→ 换命提纯卡组；否则只回血
+                            if (gm.Player.health >= 12 && gm.HasBasicSubtractCard())
+                            {
+                                gm.Damage(6);
+                                var removed = gm.RemoveBasicSubtractCard();
+                                return "你对这个祭坛感到不安，你砸碎了这个祭坛，其中出现的灵体嘲笑了你，“赐予”了你力量"
+                                     + RemovedDetail(removed);
+                            }
+                            gm.Heal(4);
+                            return "你对这个祭坛感到不安，你砸碎了这个祭坛，其中出现的灵体对你的勇敢感到敬佩，它将收集到的些许血液“分享”给你";
+                        }
                     });
                     break;
 
@@ -169,8 +225,28 @@ namespace ShuYu
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "离开（什么都不会发生）",
-                        apply = () => "你离开了祭坛。"
+                        text = "献上祭品（向祭坛献上一张你的卡牌）",
+                        apply = () =>
+                        {
+                            // 条件：卡组里有「非起手卡组」的牌 → 两件遗物 + 永久删掉其中一张；否则只给下一场 1 层格挡
+                            if (gm.HasNonStartingCard())
+                            {
+                                var gained = gm.AddRandomRelics(2);
+                                var removed = gm.RemoveRandomNonStartingCard();
+
+                                // 拿到什么、删了什么都写进结果文本（不然玩家不知道发生了什么）
+                                string detail = "\n（获得 ";
+                                detail += gained.Count > 0
+                                    ? string.Join("、", gained.ConvertAll(r => "「" + r.name + "」"))
+                                    : "无新遗物";
+                                if (removed != null) detail += "，从卡组中删除了「" + removed.DisplayName() + "」";
+                                detail += "）";
+                                return "你向祭坛虔诚地献上你的战利品，祭坛散发光芒，出现了两件强大的器物" + detail;
+                            }
+                            gm.GrantBlockNextBattle(1);
+                            return "你翻遍背包，放上了你带来的卡牌，祭坛回应了你的虔诚，并没有带走你的卡牌，但是你感受到了他的庇佑"
+                                 + "\n（下一场战斗开始时获得 1 层 格挡）";
+                        }
                     });
                     break;
 
@@ -193,12 +269,16 @@ namespace ShuYu
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "离开（什么都不会发生）",
-                        apply = () => "你离开了神像。"
+                        text = "砸碎神像（砸碎他，拒绝贪婪）",
+                        apply = () =>
+                        {
+                            gm.Heal(6);
+                            return "你拒绝了贪婪，虽然说神像的面容也有一些原因，但你砸碎了它，利用了它收集的鲜血";
+                        }
                     });
                     break;
 
-                default:   // 净化之火
+                case 5:   // 净化之火
                     ev.title = "净化之火";
                     ev.story = "一簇苍白的火焰凭空燃烧，仿佛能烧去一些「多余」的东西。";
                     ev.choices.Add(new MysteryChoice
@@ -207,17 +287,38 @@ namespace ShuYu
                         apply = () =>
                         {
                             var removed = gm.RemoveRandomCard();
-                            return removed != null ? "火焰掠过，删掉了「" + removed.DisplayText() + "」。" : "火焰掠过，却无牌可烧。";
+                            return removed != null ? "火焰掠过，删掉了「" + removed.DisplayName() + "」。" : "火焰掠过，却无牌可烧。";
                         }
                     });
                     ev.choices.Add(new MysteryChoice
                     {
-                        text = "离开（什么都不会发生）",
-                        apply = () => "你离开了火焰。"
+                        text = "传承火焰（取出一团火焰）",
+                        apply = () =>
+                        {
+                            // 薪火：事件限定牌，一局游戏里越用越强（见 CardData.CardGrowth）
+                            gm.AddCard(CardLibrary.Kindling());
+                            return "你从中引导，取出了一团弱小的火焰，你眼中突然有无数的英雄闪过，但在一瞬之间，火焰和画面全部消失，有一个声音告诉你必须将他传承下去";
+                        }
+                    });
+                    break;
+
+                default:   // 兜底：id 越界时给一个安全事件（不要写会崩的东西）
+                    ev.title = "空无一物";
+                    ev.story = "这里什么也没有。";
+                    ev.choices.Add(new MysteryChoice
+                    {
+                        text = "继续赶路（什么都不会发生）",
+                        apply = () => "你继续赶路。"
                     });
                     break;
             }
             return ev;
+        }
+
+        /// <summary>被删掉的牌写进结果文本的后缀（用户要求：玩家必须知道删了哪张牌）。</summary>
+        static string RemovedDetail(CardData removed)
+        {
+            return removed != null ? "\n（从卡组中删除了「" + removed.DisplayName() + "」）" : "";
         }
 
         void OnDestroy() { if (_root != null) Destroy(_root.gameObject); }

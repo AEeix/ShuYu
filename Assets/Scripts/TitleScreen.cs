@@ -42,14 +42,14 @@ namespace ShuYu
             PlaceAbs(newGameBtn, OriginX + 60, 460, OriginX + width, 530);
             if (!hasSave) newGameBtn.gameObject.SetActive(false);
 
-            // 设置
+            // 设置（金字，和「图 鉴」同级高亮）
             var settingsBtn = UIFactory.CreateButton("SettingsButton", _root, "设置", 36,
-                GameConfig.CardBase, GameConfig.SubText, () => GameManager.Instance.ShowSettings());
+                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowSettings());
             PlaceAbs(settingsBtn, OriginX + 60, 380 + shift, OriginX + width, 450 + shift);
 
-            // 卡牌图鉴（设置下面）
-            var codexBtn = UIFactory.CreateButton("CodexButton", _root, "卡牌图鉴", 38,
-                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowCodex());
+            // 图鉴（进图鉴主页：卡牌 / 关键词 / 遗物 / 怪物 四个子页的枢纽）
+            var codexBtn = UIFactory.CreateButton("CodexButton", _root, "图 鉴", 38,
+                GameConfig.CardBase, GameConfig.Accent, () => GameManager.Instance.ShowCodexHome());
             PlaceAbs(codexBtn, OriginX + 60, 300 + shift, OriginX + width, 370 + shift);
 
             // 退出游戏
@@ -67,14 +67,9 @@ namespace ShuYu
 #endif
         }
 
-        /// <summary>绝对定位：锚点左下角 (0,0)，offset 即相对父左下的绝对坐标。</summary>
+        /// <summary>绝对定位：直接用 UIFactory 里那一份（和 <see cref="CodexHomeScreen"/>、SceneBuilder 共用，避免版式漂移）。</summary>
         static void PlaceAbs(RectTransform rt, float left, float bottom, float right, float top)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.zero;
-            rt.offsetMin = new Vector2(left, bottom);
-            rt.offsetMax = new Vector2(right, top);
-        }
+            => UIFactory.PlaceAbs(rt, left, bottom, right, top);
 
         void OnDestroy()
         {
